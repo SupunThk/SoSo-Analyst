@@ -11,7 +11,7 @@ export interface Message {
 export interface ToolCall {
   name: string;
   input: Record<string, ToolInputValue>;
-  result: string; // truncated preview
+  result: string;
   status: 'success' | 'error';
 }
 

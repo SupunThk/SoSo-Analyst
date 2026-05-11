@@ -68,12 +68,36 @@ const tools = [
   {
     functionDeclarations: [
       {
-        name: 'compare_assets',
-        description: 'Compare two crypto assets using live market data. Best for BTC vs ETH, SOL vs ETH, or similar relative-value questions.',
+        name: 'get_asset_snapshot',
+        description: 'Get the current live market snapshot for a SINGLE crypto asset — price, 24h change, market cap, volume. Use this when the user asks about one specific coin (e.g. "What is the BTC price?", "How is Solana doing?"). Do NOT use compare_assets for single-asset questions.',
         parameters: {
           type: 'OBJECT',
           properties: {
-            assetA: { type: 'STRING', description: 'First asset name or symbol, e.g. bitcoin, btc, ethereum, eth.' },
+            asset: { type: 'STRING', description: 'Asset name or symbol, e.g. bitcoin, btc, ethereum, eth, solana, sol.' }
+          },
+          required: ['asset']
+        }
+      },
+      {
+        name: 'get_asset_price_history',
+        description: 'Get historical price data (candlestick/kline data) for a crypto asset over a period. Use this for trend analysis, chart-based questions, or when the user asks about price movement over time (e.g. "How has BTC performed this month?", "Show me ETH price trend").',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            asset: { type: 'STRING', description: 'Asset name or symbol.' },
+            interval: { type: 'STRING', description: 'Candle interval: 1h, 4h, 1d, 1w. Default 1d.' },
+            limit: { type: 'NUMBER', description: 'Number of candles to return, default 30, max 90.' }
+          },
+          required: ['asset']
+        }
+      },
+      {
+        name: 'compare_assets',
+        description: 'Compare TWO crypto assets side-by-side using live market data. ONLY use when the user explicitly compares two assets (e.g. "BTC vs ETH", "Compare Solana and Avalanche"). For single-asset queries, use get_asset_snapshot instead.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            assetA: { type: 'STRING', description: 'First asset name or symbol.' },
             assetB: { type: 'STRING', description: 'Second asset name or symbol.' }
           },
           required: ['assetA', 'assetB']
@@ -81,87 +105,108 @@ const tools = [
       },
       {
         name: 'get_asset_news_brief',
-        description: 'Get an asset-specific crypto news brief. Best for latest Bitcoin, Ethereum, or Solana headlines.',
+        description: 'Get recent news headlines for a SPECIFIC crypto asset. Use when the user asks about news for a particular coin (e.g. "Bitcoin news", "What is happening with ETH?").',
         parameters: {
           type: 'OBJECT',
           properties: {
-            asset: { type: 'STRING', description: 'Asset name or symbol, e.g. bitcoin, btc, ethereum, eth, solana, sol.' },
-            limit: { type: 'NUMBER', description: 'Number of news items to include, default 5.' }
+            asset: { type: 'STRING', description: 'Asset name or symbol.' },
+            limit: { type: 'NUMBER', description: 'Number of news items, default 5, max 10.' }
           },
           required: ['asset']
         }
       },
       {
         name: 'get_hot_news_digest',
-        description: 'Get a concise digest of the hottest crypto news headlines right now.',
+        description: 'Get the hottest GENERAL crypto news headlines right now. Use for broad market news, not asset-specific news. For asset-specific news use get_asset_news_brief instead.',
         parameters: {
           type: 'OBJECT',
           properties: {
-            limit: { type: 'NUMBER', description: 'Number of headlines to include, default 5.' }
+            limit: { type: 'NUMBER', description: 'Number of headlines, default 5, max 10.' }
           }
         }
       },
       {
         name: 'get_etf_flow_brief',
-        description: 'Get a US spot ETF flow brief for BTC or ETH, including recent flow trend and the leading funds.',
+        description: 'Get a US spot ETF flow report for BTC or ETH — includes daily net flow trend and top-performing ETF funds (e.g. IBIT, FBTC, GBTC). Use for ETF-related questions.',
         parameters: {
           type: 'OBJECT',
           properties: {
-            assetSymbol: { type: 'STRING', description: 'BTC or ETH.' },
+            assetSymbol: { type: 'STRING', description: 'BTC or ETH only.' },
             countryCode: { type: 'STRING', description: 'Country code, default US.' },
-            days: { type: 'NUMBER', description: 'Number of recent history points to include, default 5.' }
+            days: { type: 'NUMBER', description: 'Number of recent flow data points, default 5, max 30.' }
           },
           required: ['assetSymbol']
         }
       },
       {
         name: 'get_macro_crypto_calendar',
-        description: 'Get the upcoming macro calendar most relevant to crypto over the next several days.',
+        description: 'Get upcoming macroeconomic events that could impact crypto markets — FOMC meetings, CPI data, jobs reports, etc. Use for macro/economic calendar questions.',
         parameters: {
           type: 'OBJECT',
           properties: {
-            daysAhead: { type: 'NUMBER', description: 'How many calendar days ahead to include, default 7.' }
+            daysAhead: { type: 'NUMBER', description: 'How many days ahead to look, default 7, max 21.' }
           }
         }
       },
       {
         name: 'get_crypto_equities_watchlist',
-        description: 'Get a watchlist brief on crypto-related public equities like MSTR, COIN, MARA, and RIOT.',
+        description: 'Get live market data for crypto-related public stocks — MSTR, COIN, MARA, RIOT, CLSK, etc. Use for crypto stock questions, NOT for crypto coins.',
         parameters: {
           type: 'OBJECT',
           properties: {
             tickers: {
               type: 'ARRAY',
               items: { type: 'STRING' },
-              description: 'Optional list of stock tickers. Defaults to a curated crypto equities watchlist.'
+              description: 'Stock ticker symbols. Defaults to [MSTR, COIN, MARA, RIOT, CLSK].'
             }
           }
         }
       },
       {
         name: 'get_btc_treasury_brief',
-        description: 'Get a concise brief on public companies with Bitcoin treasury exposure.',
+        description: 'List public companies that hold Bitcoin on their balance sheet — treasury holdings overview. Use for "which companies hold BTC?" type questions.',
         parameters: {
           type: 'OBJECT',
           properties: {
-            limit: { type: 'NUMBER', description: 'Number of companies to include, default 10.' }
+            limit: { type: 'NUMBER', description: 'Number of companies, default 10, max 20.' }
           }
         }
       },
       {
         name: 'get_btc_purchase_history_brief',
-        description: 'Get a concise brief of a public company Bitcoin purchase history, including recent buys.',
+        description: 'Get the Bitcoin purchase history for a specific public company — shows dates, amounts, and prices of BTC acquisitions. Use for "When did MicroStrategy buy BTC?" type questions.',
         parameters: {
           type: 'OBJECT',
           properties: {
-            ticker: { type: 'STRING', description: 'Ticker symbol, e.g. MSTR, MARA, RIOT.' }
+            ticker: { type: 'STRING', description: 'Stock ticker, e.g. MSTR, MARA, RIOT.' }
           },
           required: ['ticker']
+        }
+      },
+      {
+        name: 'get_sector_spotlight',
+        description: 'Get a spotlight on trending crypto sectors and categories — DeFi, AI, Layer 2, Meme coins, etc. Shows which sectors are hot and which are not. Use for sector/category analysis questions.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            limit: { type: 'NUMBER', description: 'Number of sectors to return, default 10.' }
+          }
+        }
+      },
+      {
+        name: 'get_fundraising_overview',
+        description: 'Get recent crypto project fundraising and VC investment rounds — shows which projects raised money, how much, and from whom. Use for VC/funding/investment questions.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            limit: { type: 'NUMBER', description: 'Number of projects to return, default 10, max 20.' }
+          }
         }
       }
     ]
   }
 ];
+
 
 const truncate = (value, maxLength = 4000) =>
   value.length > maxLength ? `${value.substring(0, maxLength)}... (truncated)` : value;
@@ -219,6 +264,26 @@ const summarizeToolData = (toolName, args, data) => {
   switch (toolName) {
     case 'compare_assets': {
       return `Compared ${data?.assetA?.name || 'asset A'} and ${data?.assetB?.name || 'asset B'} using live market snapshots.`;
+    }
+    case 'get_asset_snapshot': {
+      const name = data?.asset?.name || args?.asset || 'unknown';
+      const symbol = data?.asset?.symbol || '';
+      return `Returned live market snapshot for ${name} (${symbol}).`;
+    }
+    case 'get_asset_price_history': {
+      const name = data?.asset?.name || args?.asset || 'unknown';
+      const count = data?.count || 0;
+      return `Returned ${count} ${data?.interval || '1d'} candles for ${name}.`;
+    }
+    case 'get_sector_spotlight': {
+      const count = data?.count || asArray(data?.sectors).length;
+      const topSectors = asArray(data?.sectors).slice(0, 3).map((s) => s.name).join(', ');
+      return `Returned ${count} sector spotlights. Top sectors: ${topSectors}`;
+    }
+    case 'get_fundraising_overview': {
+      const count = data?.count || asArray(data?.projects).length;
+      const topProjects = asArray(data?.projects).slice(0, 3).map((p) => p.name).join(', ');
+      return `Returned ${count} fundraising projects. Recent: ${topProjects}`;
     }
     case 'get_asset_news_brief': {
       const items = asArray(data?.items);
@@ -340,7 +405,8 @@ const sosoGet = async (path, params = {}, baseUrl = SOSO_OPENAPI_BASE) => {
     headers: {
       'x-soso-api-key': process.env.SOSO_API_KEY
     },
-    params
+    params,
+    timeout: 15000
   });
 
   return response.data;
@@ -561,6 +627,72 @@ const customToolExecutors = {
       companyTicker: ticker,
       purchases: asArray(response.data).slice(0, 20).map((item) => sanitizeForGemini(item))
     };
+  },
+  async get_asset_snapshot(args = {}) {
+    const assetRecord = await resolveCurrencyId(args.asset);
+    const response = await sosoGet(`/currencies/${assetRecord.currency_id}/market-snapshot`);
+    return {
+      asset: {
+        id: assetRecord.currency_id,
+        name: assetRecord.name,
+        symbol: assetRecord.symbol
+      },
+      snapshot: sanitizeForGemini(response.data, 0)
+    };
+  },
+  async get_asset_price_history(args = {}) {
+    const assetRecord = await resolveCurrencyId(args.asset);
+    const interval = ['1h', '4h', '1d', '1w'].includes(args.interval) ? args.interval : '1d';
+    const limit = Math.min(Math.max(Number(args.limit) || 30, 1), 90);
+    const response = await sosoGet(`/currencies/${assetRecord.currency_id}/klines`, { interval, limit });
+    const klines = asArray(response.data);
+    return {
+      asset: {
+        id: assetRecord.currency_id,
+        name: assetRecord.name,
+        symbol: assetRecord.symbol
+      },
+      interval,
+      count: klines.length,
+      klines: klines.slice(-limit).map((k) => ({
+        date: k.date || k.time,
+        open: k.open,
+        high: k.high,
+        low: k.low,
+        close: k.close,
+        volume: k.volume
+      }))
+    };
+  },
+  async get_sector_spotlight(args = {}) {
+    const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 25);
+    const response = await sosoGet('/currencies/sector-spotlight');
+    const sectors = asArray(response.data).slice(0, limit);
+    return {
+      count: sectors.length,
+      sectors: sectors.map((s) => ({
+        name: s.name || s.sector,
+        change_pct_24h: s.change_pct_24h || s.changePct24h,
+        market_cap: s.market_cap || s.marketCap,
+        volume_24h: s.volume_24h || s.volume24h,
+        top_currencies: asArray(s.top_currencies || s.topCurrencies).slice(0, 3).map((c) => c.name || c.symbol || c)
+      }))
+    };
+  },
+  async get_fundraising_overview(args = {}) {
+    const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 20);
+    const response = await sosoGet('/fundraising/projects');
+    const projects = asArray(response.data).slice(0, limit);
+    return {
+      count: projects.length,
+      projects: projects.map((p) => ({
+        name: p.name || p.project_name,
+        amount: p.amount || p.raise_amount,
+        round: p.round || p.funding_round,
+        date: p.date || p.announce_date,
+        investors: asArray(p.investors || p.lead_investors).slice(0, 3).map((i) => i.name || i)
+      }))
+    };
   }
 };
 
@@ -580,6 +712,26 @@ const normalizeToolResult = (toolName, args, apiPayload, requestMeta) => {
   };
 };
 
+const SYSTEM_PROMPT = `You are SoSo Analyst, an elite crypto market research terminal with access to live SoSoValue data feeds.
+
+RESPONSE FORMAT:
+- Use markdown formatting: **bold** for key metrics, tables for comparisons
+- Use bullet points for multi-item data
+- Start responses with a one-line **TLDR** in bold when answering analytical questions
+- Include specific numbers and percentages when available from tool data
+- End with a brief **OUTLOOK** section when analyzing market data or trends
+- Keep responses concise and data-driven — no filler
+
+RULES:
+- ONLY report data returned by your tools. Never hallucinate numbers or make up data
+- If a tool call fails, acknowledge it and work with the data you have
+- Use the summary and dataPreview fields from tool responses as your factual basis
+- When comparing assets, use a markdown table for side-by-side comparison
+- For news, summarize the key headlines and their market implications
+- For ETF data, highlight net flows and leading/lagging funds
+
+Today's date: {DATE}.`;
+
 const postGeminiGenerateContent = async (contents) => {
   const requestBody = {
     contents,
@@ -587,7 +739,7 @@ const postGeminiGenerateContent = async (contents) => {
     systemInstruction: {
       parts: [
           {
-            text: `You are SoSo Analyst, a crypto market analyst with live SoSoValue data tools. Use tools for market, ETF, news, macro, treasury, and crypto equities questions. Tool responses are the factual basis for your answer. Use the summary and dataPreview fields, cite numbers when available, stay concise, and do not guess. Today's date: ${new Date().toISOString().split('T')[0]}.`
+            text: SYSTEM_PROMPT.replace('{DATE}', new Date().toISOString().split('T')[0])
           }
         ]
       }
@@ -596,12 +748,14 @@ const postGeminiGenerateContent = async (contents) => {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const response = await axios.post(
-        `${GEMINI_API_URL}/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(process.env.GEMINI_API_KEY)}`,
+        `${GEMINI_API_URL}/${GEMINI_MODEL}:generateContent`,
         requestBody,
         {
           headers: {
-            'Content-Type': 'application/json'
-          }
+            'Content-Type': 'application/json',
+            'x-goog-api-key': process.env.GEMINI_API_KEY
+          },
+          timeout: 60000
         }
       );
 
@@ -761,9 +915,20 @@ router.post('/chat', async (req, res) => {
 
       contents.push(modelContent);
 
-      for (const call of calls) {
-        const { id, name, args } = call.functionCall;
-        const resultData = await executeTool(name, args);
+      // Execute all tool calls in parallel for better performance
+      const results = await Promise.all(
+        calls.map((call) => {
+          const { name, args } = call.functionCall;
+          return executeTool(name, args).then((resultData) => ({
+            call,
+            resultData
+          }));
+        })
+      );
+
+      for (const { call, resultData } of results) {
+        const { name, args } = call.functionCall;
+        const callId = call.functionCall.id || `call_${name}_${iterations}_${Date.now()}`;
         toolCallsMade.push({
           name,
           input: args || {},
@@ -774,7 +939,7 @@ router.post('/chat', async (req, res) => {
           role: 'user',
           parts: [{
             functionResponse: {
-              id,
+              id: callId,
               name,
               response: resultData.payload
             }
@@ -785,18 +950,32 @@ router.post('/chat', async (req, res) => {
       response = await postGeminiGenerateContent(contents);
     }
 
-    const answer = response.candidates?.[0]?.content?.parts
+    const candidate = response.candidates?.[0];
+    const finishReason = candidate?.finishReason;
+    let answer = candidate?.content?.parts
       ?.filter((part) => typeof part.text === 'string')
       .map((part) => part.text)
       .join('\n')
-      .trim() || 'No response generated.';
+      .trim() || '';
+
+    if (!answer) {
+      if (finishReason === 'SAFETY') {
+        answer = 'Response blocked by safety filters. Please rephrase your query.';
+      } else if (finishReason === 'MAX_TOKENS') {
+        answer = 'Response was truncated due to length limits. Please ask a more specific question.';
+      } else {
+        answer = 'No response generated. Please try again.';
+      }
+    }
 
     res.json({
       answer,
       toolCalls: toolCallsMade
     });
   } catch (error) {
-    console.error('Agent Error:', error);
+    const status = error.response?.status || 'unknown';
+    const errMsg = error.response?.data?.error?.message || error.message;
+    console.error(`Agent Error [${status}]: ${errMsg}`);
     const message = formatGeminiErrorMessage(error);
     res.status(500).json({ error: true, message });
   }
