@@ -1,0 +1,15 @@
+{
+  "name": "soso-analyst",
+  "version": "1.0.0",
+  "description": "AI-powered crypto research analyst",
+  "private": true,
+  "scripts": {
+    "dev:backend": "cd backend && node server.js",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

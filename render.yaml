@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: soso-analyst-backend
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: SOSO_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
