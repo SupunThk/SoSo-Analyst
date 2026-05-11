@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%">
+  <!-- Definitions -->
+  <defs>
+    <style>
+      .bg { fill: #0a0a0a; }
+      .terminal-green { fill: none; stroke: #00FF41; stroke-width: 6; stroke-linecap: square; stroke-linejoin: miter; }
+      .terminal-fill { fill: #00FF41; }
+      .accent-blue { fill: none; stroke: #0ea5e9; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+      .text-style { font-family: 'Courier New', Courier, monospace; font-size: 32px; fill: #00FF41; font-weight: bold; text-anchor: middle; letter-spacing: 1px;}
+      .glow { filter: drop-shadow(0 0 6px rgba(0, 255, 65, 0.5)); }
+      .glow-blue { filter: drop-shadow(0 0 6px rgba(14, 165, 233, 0.7)); }
+    </style>
+  </defs>
+
+  <!-- Dark Background -->
+  <rect width="100%" height="100%" class="bg" rx="20" />
+
+  <!-- Group with terminal green glow effect -->
+  <g class="glow">
+    <!-- Crab Legs (Left) -->
+    <path class="terminal-green" d="M 140 210 L 90 220 L 70 260" />
+    <path class="terminal-green" d="M 150 240 L 110 260 L 90 300" />
+    
+    <!-- Crab Legs (Right) -->
+    <path class="terminal-green" d="M 260 210 L 310 220 L 330 260" />
+    <path class="terminal-green" d="M 250 240 L 290 260 L 310 300" />
+    
+    <!-- Left Claw (Resting) -->
+    <path class="terminal-green" d="M 140 180 L 100 150 L 100 110" />
+    <path class="terminal-green" d="M 100 110 L 120 70" />
+    <path class="terminal-green" d="M 100 110 L 70 80" />
+    
+    <!-- Right Claw (Reaching up to hold Logo) -->
+    <path class="terminal-green" d="M 260 180 L 300 150 L 300 110" />
+    <path class="terminal-green" d="M 300 110 L 275 80" />
+    <path class="terminal-green" d="M 300 110 L 325 80" />
+
+    <!-- Crab Body (Hardware shape) -->
+    <rect x="140" y="160" width="120" height="90" rx="10" class="terminal-green" fill="#0a0a0a" />
+    
+    <!-- Body Details (Server/Hardware vents) -->
+    <line x1="160" y1="180" x2="240" y2="180" class="terminal-green" stroke-width="3" />
+    <line x1="160" y1="200" x2="240" y2="200" class="terminal-green" stroke-width="3" />
+    <line x1="160" y1="220" x2="240" y2="220" class="terminal-green" stroke-width="3" />
+
+    <!-- Crab Eye Stalks -->
+    <path class="terminal-green" d="M 170 160 L 150 110" />
+    <path class="terminal-green" d="M 230 160 L 250 110" />
+    
+    <!-- Crab Eyeballs (Monitors) -->
+    <rect x="135" y="90" width="30" height="20" class="terminal-green" fill="#0a0a0a"/>
+    <rect x="235" y="90" width="30" height="20" class="terminal-green" fill="#0a0a0a"/>
+    
+    <!-- Pupils -->
+    <rect x="145" y="95" width="10" height="10" class="terminal-fill" />
+    <rect x="245" y="95" width="10" height="10" class="terminal-fill" />
+  </g>
+
+
+  <!-- Typography -->
+  <text x="200" y="360" class="text-style glow">> SoSo Analyst_</text>
+</svg>
