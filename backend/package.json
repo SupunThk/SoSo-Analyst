@@ -2,10 +2,16 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
     "dev": "node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "test": "node --check server.js && node --check routes/agent.js && node --check routes/chats.js && node --check routes/market.js && node --check routes/sodex.js && node --check routes/sosovalue.js && node --check handlers/agentHandlers.js && node --check services/marketIntelligence.js && node --check clients/gemini.js && node --check clients/sodex.js && node --check clients/sodexProfile.js && node --check clients/soso.js && node --check tools/definitions.js && node --check tools/executors.js && node --check tools/executors/index.js && node --check tools/executors/wallet.js && node --check tools/executors/custom.js && node --check tools/executors/etherscanClient.js && node --check normalizers/toolResult.js && node --check prompt/system.js && node --check prompt/versions.js && node --check ai/compress.js && node --check ai/grounding.js && node --check ai/toolRouting.js && node --check evals/intent.js && node --check utils/auth.js && node --check analysis/deterministic.js && node --check analysis/synthesis.js && node tests/auth.test.js && node tests/analysis.test.js && node tests/evals.test.js && node tests/grounding.test.js && node tests/marketIntelligence.test.js && node tests/soso.test.js && node tests/wallet.test.js && node tests/routes.test.js && vitest run tests/agentHandlers.test.js tests/executors.test.js tests/services.test.js",
+    "test:evals": "node tests/evals.test.js"
+  },
+  "engines": {
+    "node": ">=20.9.0 <25",
+    "npm": ">=10"
   },
   "keywords": [],
   "author": "",
@@ -16,6 +22,18 @@
     "axios": "^1.16.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
-    "express": "^5.2.1"
+    "ethers": "^6.16.0",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.1.0",
+    "mongoose": "^9.6.2",
+    "node-cache": "^5.1.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "vitest": "4.1.7"
+  },
+  "overrides": {
+    "ws": "8.21.0"
   }
 }

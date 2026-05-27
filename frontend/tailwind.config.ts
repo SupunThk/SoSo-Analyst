@@ -18,7 +18,7 @@ const config: Config = {
         },
         text: {
           primary: "#F0F0F0",
-          secondary: "#888888",
+          secondary: "#A0A0A0",
         }
       },
       fontFamily: {

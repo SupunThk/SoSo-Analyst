@@ -1,16 +1,27 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
+import Chip from '@mui/material/Chip';
+import Tooltip from '@mui/material/Tooltip';
+import { motion } from 'framer-motion';
 
 const QUESTIONS = [
-  { cmd: 'CMD-01', icon: '📊', text: 'Compare Bitcoin and Ethereum using live market data.' },
-  { cmd: 'CMD-02', icon: '💹', text: 'Give me a US Bitcoin ETF flow brief with the recent trend and top funds.' },
-  { cmd: 'CMD-03', icon: '📰', text: 'What are the latest Bitcoin headlines and what do they imply for the market?' },
-  { cmd: 'CMD-04', icon: '🏛️', text: 'Show the macro calendar over the next week that could move crypto.' },
+  { cmd: 'CMD-01', icon: '📊', text: 'Give me the current market regime, rotation leaders, active alerts, and opportunities.' },
+  { cmd: 'CMD-02', icon: '📈', text: 'Show the SoSo SSI index rotation map and explain leaders and laggards.' },
+  { cmd: 'CMD-03', icon: '🔎', text: 'Why is SOL moving? Use token intelligence, relative strength, SoDEX liquidity, and news.' },
+  { cmd: 'CMD-04', icon: '🚨', text: 'Which market alerts are firing right now and what exact data triggered them?' },
   { cmd: 'CMD-05', icon: '🏦', text: "Summarize MicroStrategy's Bitcoin purchase history and latest accumulation." },
   { cmd: 'CMD-06', icon: '🏦', text: 'Show the key public companies with Bitcoin treasury exposure.' },
   { cmd: 'CMD-07', icon: '💼', text: 'Give me a crypto equities watchlist update for MSTR, COIN, MARA, and RIOT.' },
   { cmd: 'CMD-08', icon: '📰', text: 'What are the hottest crypto news stories right now?' },
+  { cmd: 'CMD-09', icon: '🔍', text: 'Deep dive into Bitcoin — tokenomics, supply, and price trend analysis.' },
+  { cmd: 'CMD-10', icon: '🌐', text: 'Give me a full market overview — regime, BTC price, sectors, news, and macro calendar.' },
+  { cmd: 'CMD-11', icon: '📉', text: 'Show CPI and Fed Funds Rate history and their crypto market impact.' },
+  { cmd: 'CMD-12', icon: '🔥', text: 'What crypto sectors are trending? Show the sector spotlight.' },
+  { cmd: 'CMD-13', icon: '📈', text: 'Show me the SoSoValue SSI indices and their recent performance.' },
+  { cmd: 'CMD-14', icon: '💰', text: 'What are the latest crypto fundraising and VC investment rounds?' },
+  { cmd: 'CMD-15', icon: '💼', text: 'Analyze my portfolio — check my holdings, risk profile, and market fit.' },
+  { cmd: 'CMD-16', icon: '📘', text: 'Show SoDEX markets and the BTC-USD order book depth.' },
 ];
 
 interface SuggestedQuestionsProps {
@@ -86,16 +97,50 @@ const SuggestedQuestions: React.FC<SuggestedQuestionsProps> = ({ onSelect }) => 
         onMouseMove={handleMouseMove}
         className={`flex overflow-x-auto gap-2 pb-2 px-2 scrollbar-hide fade-edges ${isDragging ? 'cursor-grabbing' : 'cursor-pointer'}`}
       >
-        {QUESTIONS.map((q) => (
-          <div
+        {QUESTIONS.map((q, index) => (
+          <motion.div
             key={q.cmd}
-            onClick={(e) => handleClick(e, q.text)}
-            className="group whitespace-nowrap flex items-center gap-2 px-3 py-1.5 rounded-sm border border-border bg-[#060A06] text-[10px] font-mono text-text-secondary hover:border-accent-green/50 hover:text-accent-green hover:bg-accent-green/5 transition-all select-none"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: Math.min(index * 0.015, 0.18), duration: 0.18 }}
+            whileHover={{ y: -1 }}
+            whileTap={{ scale: 0.99 }}
+            className="shrink-0"
           >
-            <span className="text-[8px] opacity-40 group-hover:opacity-70 font-bold tracking-widest">[{q.cmd}]</span>
-            <span className="text-xs">{q.icon}</span>
-            <span className="tracking-tight">{q.text}</span>
-          </div>
+            <Tooltip title={q.text} arrow>
+              <Chip
+                onClick={(e) => handleClick(e, q.text)}
+                variant="outlined"
+                label={
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="text-[8px] opacity-50 font-bold tracking-widest">[{q.cmd}]</span>
+                    <span className="text-xs">{q.icon}</span>
+                    <span className="max-w-[420px] truncate tracking-tight">{q.text}</span>
+                  </span>
+                }
+                sx={{
+                  height: 34,
+                  maxWidth: 520,
+                  borderColor: 'rgba(26,42,26,0.95)',
+                  bgcolor: 'rgba(6,10,6,0.95)',
+                  color: 'text.secondary',
+                  boxShadow: '0 2px 14px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)',
+                  cursor: isDragging ? 'grabbing' : 'pointer',
+                  userSelect: 'none',
+                  '& .MuiChip-label': {
+                    minWidth: 0,
+                    px: 1.25,
+                  },
+                  '&:hover': {
+                    color: 'primary.main',
+                    borderColor: 'rgba(0,255,157,0.45)',
+                    bgcolor: 'rgba(0,255,157,0.06)',
+                    boxShadow: '0 4px 22px rgba(0,255,157,0.08), inset 0 1px 0 rgba(255,255,255,0.05)',
+                  },
+                }}
+              />
+            </Tooltip>
+          </motion.div>
         ))}
       </div>
     </div>

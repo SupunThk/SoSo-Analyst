@@ -1,0 +1,145 @@
+[
+  {
+    "id": "btc-price",
+    "query": "What is the BTC price?",
+    "expectedTools": ["get_asset_snapshot"],
+    "intent": "asset_snapshot",
+    "expectedBudget": "simple"
+  },
+  {
+    "id": "eth-trend",
+    "query": "How has ETH performed over the last 30 days?",
+    "expectedTools": ["get_asset_price_history"],
+    "intent": "price_history",
+    "matchMode": "any",
+    "expectedBudget": "standard"
+  },
+  {
+    "id": "btc-vs-eth",
+    "query": "Compare BTC vs ETH",
+    "expectedTools": ["compare_assets"],
+    "intent": "compare",
+    "expectedBudget": "simple"
+  },
+  {
+    "id": "btc-news",
+    "query": "Latest Bitcoin news",
+    "expectedTools": ["get_asset_news_brief"],
+    "intent": "asset_news",
+    "matchMode": "any",
+    "expectedBudget": "standard"
+  },
+  {
+    "id": "market-news",
+    "query": "What is happening in crypto markets today?",
+    "expectedTools": ["get_market_intelligence", "get_hot_news_digest"],
+    "intent": "market_overview",
+    "matchMode": "any",
+    "expectedBudget": "market"
+  },
+  {
+    "id": "btc-etf",
+    "query": "US BTC ETF flows this week",
+    "expectedTools": ["get_etf_flow_brief"],
+    "intent": "etf_flow",
+    "matchMode": "any",
+    "expectedBudget": "standard"
+  },
+  {
+    "id": "macro-calendar",
+    "query": "Upcoming macro events affecting crypto",
+    "expectedTools": ["get_macro_crypto_calendar"],
+    "intent": "macro",
+    "matchMode": "any",
+    "expectedBudget": "standard"
+  },
+  {
+    "id": "mstr-treasury",
+    "query": "When did MicroStrategy buy BTC?",
+    "expectedTools": ["get_btc_treasury_brief", "get_btc_purchase_history_brief"],
+    "intent": "treasury",
+    "matchMode": "any",
+    "expectedBudget": "standard"
+  },
+  {
+    "id": "portfolio",
+    "query": "Analyze my portfolio",
+    "expectedTools": ["get_wallet_holdings"],
+    "intent": "portfolio",
+    "matchMode": "any",
+    "expectedBudget": "portfolio"
+  },
+  {
+    "id": "sol-tokenomics",
+    "query": "Solana tokenomics and supply",
+    "expectedTools": ["get_token_economics"],
+    "intent": "tokenomics",
+    "expectedBudget": "simple"
+  },
+  {
+    "id": "out-of-scope",
+    "query": "How do I bake a chocolate cake?",
+    "expectedTools": [],
+    "intent": "reject",
+    "outOfScope": true
+  },
+  {
+    "id": "sol-why-pumping",
+    "query": "Why is SOL pumping?",
+    "expectedTools": ["get_token_intelligence"],
+    "intent": "token_intelligence",
+    "expectedBudget": "simple"
+  },
+  {
+    "id": "eth-deep-dive",
+    "query": "Deep dive on ETH",
+    "expectedTools": ["get_token_intelligence", "get_asset_price_history", "get_token_economics", "get_trading_pairs"],
+    "intent": "asset_deep_dive",
+    "matchMode": "any",
+    "expectedBudget": "deep_dive"
+  },
+  {
+    "id": "market-regime",
+    "query": "What is the current market regime?",
+    "expectedTools": ["get_market_intelligence"],
+    "intent": "market_intelligence",
+    "expectedBudget": "simple"
+  },
+  {
+    "id": "doge-buy",
+    "query": "Is DOGE a good buy right now?",
+    "expectedTools": ["get_token_intelligence", "get_asset_price_history", "get_token_economics", "get_trading_pairs"],
+    "intent": "asset_deep_dive",
+    "matchMode": "any",
+    "expectedBudget": "deep_dive"
+  },
+  {
+    "id": "sodex-markets",
+    "query": "What are SoDEX markets?",
+    "expectedTools": ["get_sodex_markets"],
+    "intent": "sodex_markets",
+    "expectedBudget": "simple"
+  },
+  {
+    "id": "sodex-orderbook",
+    "query": "Show me the SoDEX order book depth",
+    "expectedTools": ["get_sodex_orderbook"],
+    "intent": "sodex_orderbook",
+    "expectedBudget": "simple"
+  },
+  {
+    "id": "sector-analysis",
+    "query": "Which crypto sectors are hot right now?",
+    "expectedTools": ["get_sector_spotlight", "get_index_overview"],
+    "intent": "sector",
+    "matchMode": "any",
+    "expectedBudget": "standard"
+  },
+  {
+    "id": "btc-supply",
+    "query": "What is the circulating supply of Bitcoin?",
+    "expectedTools": ["get_token_economics"],
+    "intent": "tokenomics",
+    "expectedBudget": "simple"
+  }
+]
