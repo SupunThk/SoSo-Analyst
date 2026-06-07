@@ -6,7 +6,7 @@ const OUT_OF_SCOPE_PATTERN = /\b(bake|recipe|cook|python script|write me a poem|
 
 const normalizeQuery = (query) => String(query || '').trim().toLowerCase();
 
-const inferIntentFromQuery = (query) => {
+const inferIntentFromQuery = async (query) => {
   const normalized = normalizeQuery(query);
 
   if (!normalized) {
@@ -18,7 +18,7 @@ const inferIntentFromQuery = (query) => {
   }
 
   // Use the real routing from toolRouting.js for consistency
-  const allowlist = getToolAllowlist(query);
+  const allowlist = await getToolAllowlist(query);
   if (allowlist.allowedFunctionNames.length) {
     return {
       intent: allowlist.intent,
@@ -63,9 +63,9 @@ const matchesBudgetExpectation = (goldenCase, inference) => {
   return inference.budget === goldenCase.expectedBudget;
 };
 
-const evaluateGoldenSuite = () => {
-  const results = goldenCases.map((goldenCase) => {
-    const inference = inferIntentFromQuery(goldenCase.query);
+const evaluateGoldenSuite = async () => {
+  const results = await Promise.all(goldenCases.map(async (goldenCase) => {
+    const inference = await inferIntentFromQuery(goldenCase.query);
     const toolPass = matchesGoldenExpectation(goldenCase, inference);
     const budgetPass = matchesBudgetExpectation(goldenCase, inference);
     return {
@@ -81,7 +81,7 @@ const evaluateGoldenSuite = () => {
       intent: inference.intent,
       outOfScope: inference.outOfScope
     };
-  });
+  }));
 
   const passed = results.filter((item) => item.pass).length;
   return {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 
@@ -8,19 +8,17 @@ import WalletConnect from '@/components/WalletConnect';
 import { WalletConnection } from '@/lib/types';
 
 const DEFAULT_HERO_QUERIES = [
-  { icon: '📊', label: 'Regime', text: 'Give me the current market regime, rotation leaders, active alerts, and opportunities.' },
-  { icon: '📈', label: 'Rotation', text: 'Show the SoSo SSI index rotation map and explain leaders and laggards.' },
-  { icon: '🔎', label: 'Token Moving', text: 'Why is SOL moving? Use token intelligence, relative strength, SoDEX liquidity, and news.' },
-  { icon: '🚨', label: 'Alerts', text: 'Which market alerts are firing right now and what exact data triggered them?' },
-  { icon: '💹', label: 'Scanner', text: 'Show me the opportunity scanner with exact evidence and risks.' },
-  { icon: '📰', label: 'News', text: 'What are the hottest crypto news stories right now and how do they affect the regime?' },
+  { icon: '📊', label: 'Market Overview', text: 'Give me a full market overview report - BTC price, top movers, sector trends, news, macro calendar, and strategic outlook.' },
+  { icon: '📰', label: 'Hot News', text: 'Give me a headline-first crypto news report: top stories, why each matters, market readthrough, and what to watch next.' },
+  { icon: '🏦', label: 'ETF Flows', text: 'Give me a US Bitcoin spot ETF flow report: latest flows, top funds, AUM/volume context, BTC price readthrough, and risks.' },
+  { icon: '🔥', label: 'Sectors', text: 'Give me a ranked crypto sector report: sector leaders, laggards, key evidence, rotation takeaway, and risks.' },
+  { icon: '📉', label: 'Macro Events', text: 'Give me a crypto macro calendar report: upcoming events, dates, expected impact, and what to watch next.' },
 ];
 
 const DEFAULT_MOCK_PROMPTS = [
-  "Analyze smart money flows into AI tokens",
-  "What is the current SoSo SSI rotation?",
-  "Show me token intelligence for SOL",
-  "Scan for regime change alerts",
+  'Give me a Bitcoin price snapshot report',
+  'Compare Bitcoin and Ethereum in a report table',
+  'Give me a ranked sector rotation report',
 ];
 
 interface HeroStateProps {
@@ -34,78 +32,36 @@ const HeroState: React.FC<HeroStateProps> = ({ onRunQuery, onConnectWallet, wall
   const [promptIndex, setPromptIndex] = useState(0);
   const [typedText, setTypedText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
-  const [heroQueries, setHeroQueries] = useState(DEFAULT_HERO_QUERIES);
-  const [mockPrompts, setMockPrompts] = useState(DEFAULT_MOCK_PROMPTS);
-
-  // Fetch trending token on mount to make prompts dynamic
-  useEffect(() => {
-    const fetchTrending = async () => {
-      try {
-        const response = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbols=["SOLUSDT","PEPEUSDT","DOGEUSDT","SUIUSDT","AVAXUSDT","LINKUSDT","WIFUSDT","RENDERUSDT"]');
-        const data = await response.json();
-        
-        // Find the token with the highest 24h price change
-        let topGainer = data[0];
-        for (let i = 1; i < data.length; i++) {
-          if (parseFloat(data[i].priceChangePercent) > parseFloat(topGainer.priceChangePercent)) {
-            topGainer = data[i];
-          }
-        }
-        
-        const trendingTicker = topGainer.symbol.replace('USDT', '');
-        const change = parseFloat(topGainer.priceChangePercent).toFixed(1);
-
-        setHeroQueries(prev => prev.map(q => 
-          q.label === 'Token Moving' 
-            ? { ...q, label: `${trendingTicker} +${change}%`, text: `Why is ${trendingTicker} pumping? Use token intelligence, relative strength, SoDEX liquidity, and news.` }
-            : q
-        ));
-
-        setMockPrompts(prev => prev.map(p => 
-          p.includes('SOL') ? `Show me token intelligence for ${trendingTicker}` : p
-        ));
-
-      } catch (err) {
-        console.error("Failed to fetch trending token", err);
-      }
-    };
-    
-    fetchTrending();
-  }, []);
 
   useEffect(() => {
-    const currentPrompt = mockPrompts[promptIndex];
+    const currentPrompt = DEFAULT_MOCK_PROMPTS[promptIndex];
     let timeout: NodeJS.Timeout;
 
     if (isDeleting) {
       if (typedText === '') {
         timeout = setTimeout(() => {
           setIsDeleting(false);
-          setPromptIndex((prev) => (prev + 1) % mockPrompts.length);
+          setPromptIndex((prev) => (prev + 1) % DEFAULT_MOCK_PROMPTS.length);
         }, 30);
       } else {
         timeout = setTimeout(() => {
           setTypedText(typedText.slice(0, -1));
         }, 30);
       }
+    } else if (typedText === currentPrompt) {
+      timeout = setTimeout(() => setIsDeleting(true), 2500);
     } else {
-      if (typedText === currentPrompt) {
-        timeout = setTimeout(() => setIsDeleting(true), 2500);
-      } else {
-        timeout = setTimeout(() => {
-          // If the prompt changed dynamically and no longer matches what we've typed, 
-          // force a delete phase to cleanly reset.
-          if (!currentPrompt.startsWith(typedText)) {
-            setIsDeleting(true);
-          } else {
-            setTypedText(currentPrompt.slice(0, typedText.length + 1));
-          }
-        }, 70);
-      }
+      timeout = setTimeout(() => {
+        if (!currentPrompt.startsWith(typedText)) {
+          setIsDeleting(true);
+        } else {
+          setTypedText(currentPrompt.slice(0, typedText.length + 1));
+        }
+      }, 70);
     }
 
     return () => clearTimeout(timeout);
-  }, [typedText, isDeleting, promptIndex, mockPrompts]);
+  }, [typedText, isDeleting, promptIndex]);
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto scroll-smooth px-4 sm:px-6 pt-6 md:pt-10 pb-8 relative z-10">
@@ -133,11 +89,10 @@ const HeroState: React.FC<HeroStateProps> = ({ onRunQuery, onConnectWallet, wall
           </div>
 
           <p className="hero-tagline max-w-sm text-center text-xs font-sans font-medium text-text-secondary/90 tracking-widest uppercase leading-relaxed md:text-right">
-            Regime / Rotation / Token Movement / Alerts
+            Prices / News / ETF Flows / Macro / Sectors
           </p>
         </div>
 
-        {/* Animated Typing Effect */}
         <div className="w-full mb-6 flex justify-center">
           <div className="text-center font-mono text-accent-green text-sm md:text-base border border-accent-green/30 bg-accent-green/[0.05] rounded-md px-6 py-3 shadow-[0_0_15px_rgba(0,255,157,0.1)] inline-block min-w-[280px] max-w-2xl h-12 flex items-center justify-center">
             <span className="text-glow-green">{typedText}</span>
@@ -145,19 +100,15 @@ const HeroState: React.FC<HeroStateProps> = ({ onRunQuery, onConnectWallet, wall
           </div>
         </div>
 
-
-
-        {/* Connect Wallet CTA if not connected */}
         {!walletAddress && (
           <div className="mt-8 mb-4 flex justify-center w-full">
             <WalletConnect onConnect={onConnectWallet} walletAddress={walletAddress || null} />
           </div>
         )}
 
-        {/* Quick Action Grid */}
         <div className="w-full mt-5 mb-5 md:mb-8 rounded-md glass-panel p-2.5 md:p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_12px_48px_rgba(0,0,0,0.35)]">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 md:gap-2.5 w-full">
-            {heroQueries.map((q, idx) => (
+            {DEFAULT_HERO_QUERIES.map((q, idx) => (
               <motion.button
                 key={q.label}
                 initial={{ opacity: 0, y: 10 }}
@@ -181,7 +132,6 @@ const HeroState: React.FC<HeroStateProps> = ({ onRunQuery, onConnectWallet, wall
             ))}
           </div>
         </div>
-
       </div>
     </div>
   );

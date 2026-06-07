@@ -35,14 +35,68 @@ const getErrorMessage = (data: unknown, fallback: string) => {
   return fallback;
 };
 
+// ── Rate Limit Error with retry-after support ──
+export class RateLimitError extends Error {
+  public retryAfterMs: number;
+  constructor(retryAfterMs: number, data?: unknown) {
+    const msg = getErrorMessage(data, 'Rate limit reached.');
+    super(msg);
+    this.name = 'RateLimitError';
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+export const isRateLimitError = (error: unknown): error is RateLimitError =>
+  error instanceof RateLimitError;
+
+export class UnauthorizedError extends Error {
+  constructor(message = 'Valid wallet session is required.') {
+    super(message);
+    this.name = 'UnauthorizedError';
+  }
+}
+
+export const isUnauthorizedError = (error: unknown): error is UnauthorizedError =>
+  error instanceof UnauthorizedError;
+
+export const isAbortError = (error: unknown): boolean =>
+  error instanceof DOMException && error.name === 'AbortError';
+
+const parseRetryAfter = (res: Response): number => {
+  // draft-8 standard headers
+  const resetStr = res.headers.get('ratelimit-reset') || res.headers.get('RateLimit-Reset');
+  const retryStr = res.headers.get('retry-after') || res.headers.get('Retry-After');
+  if (resetStr) {
+    const secs = Number(resetStr);
+    if (Number.isFinite(secs) && secs > 0) return secs * 1000;
+  }
+  if (retryStr) {
+    const secs = Number(retryStr);
+    if (Number.isFinite(secs) && secs > 0) return secs * 1000;
+  }
+  return 5000; // Default 5s wait
+};
+
+const sleep = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')); }, { once: true });
+  });
+
 const readJson = async <T>(res: Response): Promise<T> => {
   const data = await res.json().catch(() => null);
 
+  if (res.status === 429) {
+    throw new RateLimitError(parseRetryAfter(res), data);
+  }
+
+  if (res.status === 401) {
+    throw new UnauthorizedError(getErrorMessage(data, 'Valid wallet session is required.'));
+  }
+
   if (!res.ok) {
-    const fallback = res.status === 429
-      ? 'Rate limit reached. Please wait a moment while cached data is used.'
-      : `Server error (${res.status})`;
-    throw new Error(getErrorMessage(data, fallback));
+    throw new Error(getErrorMessage(data, `Server error (${res.status})`));
   }
 
   return data as T;
@@ -71,32 +125,64 @@ const isRateLimitMessage = (message: string) =>
 const readCachedRequest = async <T>(
   cache: CachedRequest<T>,
   maxAgeMs: number,
-  fetcher: () => Promise<T>
+  fetcher: (signal?: AbortSignal) => Promise<T>,
+  signal?: AbortSignal
 ): Promise<T> => {
   const now = Date.now();
   if (cache.data && now - cache.fetchedAt <= maxAgeMs) {
     return cache.data;
   }
 
-  if (cache.inFlight) {
+  // Do not share in-flight requests that are bound to a component AbortSignal.
+  // In React dev/StrictMode, an aborted first mount can otherwise poison the
+  // global cache and make the next mount receive the same aborted promise.
+  const canShareInFlight = !signal;
+
+  if (canShareInFlight && cache.inFlight) {
     return cache.inFlight;
   }
 
-  cache.inFlight = fetcher()
+  const request = fetcher(signal)
     .then((data) => {
       cache.data = data;
       cache.fetchedAt = Date.now();
       return data;
     })
-    .catch((error: unknown) => {
+    .catch(async (error: unknown) => {
+      // Abort errors always propagate immediately
+      if (isAbortError(error)) throw error;
+
+      // Rate limit: return stale data if available, otherwise wait and retry once
+      if (isRateLimitError(error)) {
+        if (cache.data) return cache.data;
+        // No stale data — wait for reset then retry once
+        try {
+          await sleep(error.retryAfterMs, signal);
+          const retryData = await fetcher(signal);
+          cache.data = retryData;
+          cache.fetchedAt = Date.now();
+          return retryData;
+        } catch (retryErr) {
+          if (isAbortError(retryErr)) throw retryErr;
+          // Still rate limited or other error on retry — throw as RateLimitError
+          throw error;
+        }
+      }
+
+      // Other errors: return stale data if it's a rate-limit-like message
       if (error instanceof Error && cache.data && isRateLimitMessage(error.message)) {
         return cache.data;
       }
       throw error;
-    })
-    .finally(() => {
-      cache.inFlight = null;
     });
+
+  if (!canShareInFlight) {
+    return request;
+  }
+
+  cache.inFlight = request.finally(() => {
+    cache.inFlight = null;
+  });
 
   return cache.inFlight;
 };
@@ -127,10 +213,21 @@ export async function sendMessageStream(
   callbacks: StreamCallbacks,
   walletAddress?: string | null,
   chatId?: string | null,
-  authToken?: string | null
+  authToken?: string | null,
+  externalSignal?: AbortSignal
 ): Promise<void> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 120000);
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, 120000);
+
+  // Link external signal so callers can cancel from outside
+  if (externalSignal) {
+    if (externalSignal.aborted) { controller.abort(); }
+    else { externalSignal.addEventListener('abort', () => controller.abort(), { once: true }); }
+  }
 
   try {
     const res = await fetch(apiUrl('/api/agent/chat/stream'), {
@@ -222,8 +319,15 @@ export async function sendMessageStream(
       callbacks.onError?.('Connection closed before the analysis completed.');
     }
   } catch (error: unknown) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      callbacks.onError?.('Request timed out. The analysis engine took too long to respond.');
+    if (isAbortError(error)) {
+      if (externalSignal?.aborted && !timedOut) {
+        return;
+      }
+      callbacks.onError?.(
+        timedOut
+          ? 'Request timed out. The analysis engine took too long to respond.'
+          : 'Request was cancelled before the analysis completed.'
+      );
     } else if (error instanceof Error) {
       callbacks.onError?.(formatNetworkError(error));
     } else {
@@ -265,29 +369,31 @@ export async function sendMessage(
 }
 
 // Live ticker data
-export async function fetchTickerData(): Promise<TickerAsset[]> {
+export async function fetchTickerData(signal?: AbortSignal): Promise<TickerAsset[]> {
   try {
-    const res = await fetch(apiUrl('/api/agent/ticker'));
+    const res = await fetch(apiUrl('/api/agent/ticker'), { signal });
     if (!res.ok) return [];
     const data = await res.json();
     return data.data || [];
-  } catch {
+  } catch (err) {
+    if (isAbortError(err)) throw err;
     return [];
   }
 }
 
-export async function fetchMarketIntelligence(): Promise<MarketIntelligence> {
+export async function fetchMarketIntelligence(signal?: AbortSignal): Promise<MarketIntelligence> {
   return readCachedRequest(
     marketIntelligenceCache,
     MARKET_INTELLIGENCE_CLIENT_CACHE_MS,
-    async () => {
-      const res = await fetch(apiUrl('/api/market/intelligence'));
+    async (s?: AbortSignal) => {
+      const res = await fetch(apiUrl('/api/market/intelligence'), { signal: s });
       return readJson<MarketIntelligence>(res);
-    }
+    },
+    signal
   );
 }
 
-export async function fetchTokenIntelligence(asset: string): Promise<TokenIntelligence> {
+export async function fetchTokenIntelligence(asset: string, signal?: AbortSignal): Promise<TokenIntelligence> {
   const key = asset.trim().toUpperCase();
   const cache = tokenIntelligenceCache.get(key) || {
     data: null,
@@ -299,35 +405,53 @@ export async function fetchTokenIntelligence(asset: string): Promise<TokenIntell
   return readCachedRequest(
     cache,
     TOKEN_INTELLIGENCE_CLIENT_CACHE_MS,
-    async () => {
-      const res = await fetch(apiUrl(`/api/market/token/${encodeURIComponent(asset)}`));
+    async (s?: AbortSignal) => {
+      const res = await fetch(apiUrl(`/api/market/token/${encodeURIComponent(asset)}`), { signal: s });
       return readJson<TokenIntelligence>(res);
-    }
+    },
+    signal
   );
 }
 
 // Auth and Chat History API
-export async function requestWalletNonce(walletAddress: string): Promise<AuthNonceResponse> {
-  const res = await fetch(apiUrl('/api/chats/auth/nonce'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ walletAddress })
-  });
-  return readJson<AuthNonceResponse>(res);
+export async function requestWalletNonce(walletAddress: string, signal?: AbortSignal): Promise<AuthNonceResponse> {
+  try {
+    const res = await fetch(apiUrl('/api/chats/auth/nonce'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ walletAddress }),
+      signal
+    });
+    return readJson<AuthNonceResponse>(res);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      throw new Error(formatNetworkError(error));
+    }
+    throw error;
+  }
 }
 
-export async function verifyWalletSignature(walletAddress: string, signature: string): Promise<AuthSession> {
-  const res = await fetch(apiUrl('/api/chats/auth/verify'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ walletAddress, signature })
-  });
-  return readJson<AuthSession>(res);
+export async function verifyWalletSignature(walletAddress: string, signature: string, signal?: AbortSignal): Promise<AuthSession> {
+  try {
+    const res = await fetch(apiUrl('/api/chats/auth/verify'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ walletAddress, signature }),
+      signal
+    });
+    return readJson<AuthSession>(res);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      throw new Error(formatNetworkError(error));
+    }
+    throw error;
+  }
 }
 
-export async function fetchChats(walletAddress: string, authToken: string): Promise<ChatSessionSummary[]> {
+export async function fetchChats(walletAddress: string, authToken: string, signal?: AbortSignal): Promise<ChatSessionSummary[]> {
   const res = await fetch(apiUrl(`/api/chats/${walletAddress}`), {
-    headers: authHeaders(authToken)
+    headers: authHeaders(authToken),
+    signal
   });
   const data = await readJson<unknown>(res);
 
@@ -338,26 +462,29 @@ export async function fetchChats(walletAddress: string, authToken: string): Prom
   return data as ChatSessionSummary[];
 }
 
-export async function createChat(walletAddress: string, authToken: string, title?: string): Promise<ChatSession> {
+export async function createChat(walletAddress: string, authToken: string, title?: string, signal?: AbortSignal): Promise<ChatSession> {
   const res = await fetch(apiUrl('/api/chats'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders(authToken) },
-    body: JSON.stringify({ walletAddress, title })
+    body: JSON.stringify({ walletAddress, title }),
+    signal
   });
   return readJson<ChatSession>(res);
 }
 
-export async function fetchChatSession(chatId: string, authToken: string): Promise<ChatSession> {
+export async function fetchChatSession(chatId: string, authToken: string, signal?: AbortSignal): Promise<ChatSession> {
   const res = await fetch(apiUrl(`/api/chats/session/${chatId}`), {
-    headers: authHeaders(authToken)
+    headers: authHeaders(authToken),
+    signal
   });
   return readJson<ChatSession>(res);
 }
 
-export async function deleteChat(chatId: string, authToken: string): Promise<{ success: boolean; _id: string }> {
+export async function deleteChat(chatId: string, authToken: string, signal?: AbortSignal): Promise<{ success: boolean; _id: string }> {
   const res = await fetch(apiUrl(`/api/chats/${chatId}`), {
     method: 'DELETE',
-    headers: authHeaders(authToken)
+    headers: authHeaders(authToken),
+    signal
   });
   return readJson<{ success: boolean; _id: string }>(res);
 }
@@ -366,19 +493,22 @@ export async function submitMessageFeedback(
   chatId: string,
   messageIndex: number,
   rating: 'up' | 'down',
-  authToken: string
+  authToken: string,
+  signal?: AbortSignal
 ): Promise<{ success: boolean; messageIndex: number; feedback: { rating: 'up' | 'down'; at: string } }> {
   const res = await fetch(apiUrl(`/api/chats/${chatId}/feedback`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders(authToken) },
-    body: JSON.stringify({ messageIndex, rating })
+    body: JSON.stringify({ messageIndex, rating }),
+    signal
   });
   return readJson(res);
 }
 
-export async function fetchSodexProfile(walletAddress: string, authToken?: string | null): Promise<SodexProfile> {
+export async function fetchSodexProfile(walletAddress: string, authToken?: string | null, signal?: AbortSignal): Promise<SodexProfile> {
   const res = await fetch(apiUrl(`/api/sodex/profile/${walletAddress}`), {
-    headers: authHeaders(authToken)
+    headers: authHeaders(authToken),
+    signal
   });
   return readJson<SodexProfile>(res);
 }
@@ -408,23 +538,29 @@ const toFiniteNumber = (value: unknown): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const unwrapMetricValue = (value: unknown): unknown =>
+  isRecord(value) && Object.prototype.hasOwnProperty.call(value, 'value')
+    ? value.value
+    : value;
+
 const hotNewsCache: CachedRequest<unknown> = { data: null, fetchedAt: 0, inFlight: null };
 const etfSummaryCache: CachedRequest<SosoEtfSummary> = { data: null, fetchedAt: 0, inFlight: null };
 const macroEventsCache: CachedRequest<unknown> = { data: null, fetchedAt: 0, inFlight: null };
 
-export async function fetchSosoHotNews(): Promise<unknown> {
-  return readCachedRequest(hotNewsCache, SOSO_CLIENT_CACHE_MS, async () => {
-    const res = await fetch(apiUrl('/api/soso/news/hot'));
+export async function fetchSosoHotNews(signal?: AbortSignal): Promise<unknown> {
+  return readCachedRequest(hotNewsCache, SOSO_CLIENT_CACHE_MS, async (s?: AbortSignal) => {
+    const res = await fetch(apiUrl('/api/soso/news/hot'), { signal: s });
     return readJson<unknown>(res);
-  });
+  }, signal);
 }
 
-export async function fetchSosoETFSummary(): Promise<SosoEtfSummary> {
-  return readCachedRequest(etfSummaryCache, SOSO_CLIENT_CACHE_MS, async () => {
+export async function fetchSosoETFSummary(signal?: AbortSignal): Promise<SosoEtfSummary> {
+  return readCachedRequest(etfSummaryCache, SOSO_CLIENT_CACHE_MS, async (s?: AbortSignal) => {
     const res = await fetch(apiUrl('/api/soso/etfs/current-data-metrics'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'btc' })
+      body: JSON.stringify({ type: 'us-btc-spot' }),
+      signal: s
     });
     const btcRaw = await readJson<unknown>(res).catch(() => null);
     
@@ -433,10 +569,12 @@ export async function fetchSosoETFSummary(): Promise<SosoEtfSummary> {
       const ethRes = await fetch(apiUrl('/api/soso/etfs/current-data-metrics'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'eth' })
+        body: JSON.stringify({ type: 'us-eth-spot' }),
+        signal: s
       });
       ethRaw = await readJson<unknown>(ethRes);
-    } catch {
+    } catch (err) {
+      if (isAbortError(err)) throw err;
       // ETH endpoint may not be supported by SoSoValue yet
     }
 
@@ -447,7 +585,7 @@ export async function fetchSosoETFSummary(): Promise<SosoEtfSummary> {
       for (const key of keys) {
         const nestedValue = nested?.[key];
         const directValue = payload[key];
-        const parsed = toFiniteNumber(nestedValue ?? directValue);
+        const parsed = toFiniteNumber(unwrapMetricValue(nestedValue ?? directValue));
         if (parsed !== null) return parsed;
       }
 
@@ -457,35 +595,35 @@ export async function fetchSosoETFSummary(): Promise<SosoEtfSummary> {
     return {
       btcDailyNetInflow: extractField(btcRaw, 'totalNetInflow', 'dailyNetInflow', 'netInflow', 'todayNetInflow'),
       btcTotalNetAssets: extractField(btcRaw, 'totalNetAssets', 'netAssets', 'aum', 'totalAum'),
-      btcTotalVolume: extractField(btcRaw, 'totalVolume', 'volume', 'tradingVolume'),
+      btcTotalVolume: extractField(btcRaw, 'dailyTotalValueTraded', 'totalValueTraded', 'totalVolume', 'volume', 'tradingVolume'),
       ethDailyNetInflow: extractField(ethRaw, 'totalNetInflow', 'dailyNetInflow', 'netInflow', 'todayNetInflow'),
       ethTotalNetAssets: extractField(ethRaw, 'totalNetAssets', 'netAssets', 'aum', 'totalAum'),
-      ethTotalVolume: extractField(ethRaw, 'totalVolume', 'volume', 'tradingVolume'),
+      ethTotalVolume: extractField(ethRaw, 'dailyTotalValueTraded', 'totalValueTraded', 'totalVolume', 'volume', 'tradingVolume'),
       // Pass through raw data for debugging
       _btcRaw: btcRaw,
       _ethRaw: ethRaw,
     };
-  });
+  }, signal);
 }
 
-export async function fetchSosoMacroEvents(): Promise<unknown> {
-  return readCachedRequest(macroEventsCache, SOSO_CLIENT_CACHE_MS, async () => {
-    const res = await fetch(apiUrl('/api/soso/macro/events'));
+export async function fetchSosoMacroEvents(signal?: AbortSignal): Promise<unknown> {
+  return readCachedRequest(macroEventsCache, SOSO_CLIENT_CACHE_MS, async (s?: AbortSignal) => {
+    const res = await fetch(apiUrl('/api/soso/macro/events'), { signal: s });
     return readJson<unknown>(res);
-  });
+  }, signal);
 }
 
 const indicesCache: CachedRequest<unknown> = { data: null, fetchedAt: 0, inFlight: null };
 const indicesOverviewCache = new Map<number, CachedRequest<unknown>>();
 
-export async function fetchSosoIndices(): Promise<unknown> {
-  return readCachedRequest(indicesCache, SOSO_CLIENT_CACHE_MS, async () => {
-    const res = await fetch(apiUrl('/api/soso/indices'));
+export async function fetchSosoIndices(signal?: AbortSignal): Promise<unknown> {
+  return readCachedRequest(indicesCache, SOSO_CLIENT_CACHE_MS, async (s?: AbortSignal) => {
+    const res = await fetch(apiUrl('/api/soso/indices'), { signal: s });
     return readJson<unknown>(res);
-  });
+  }, signal);
 }
 
-export async function fetchSosoIndicesOverview(snapshotLimit = 8): Promise<unknown> {
+export async function fetchSosoIndicesOverview(snapshotLimit = 8, signal?: AbortSignal): Promise<unknown> {
   const safeLimit = Number.isFinite(snapshotLimit) ? Math.max(0, Math.floor(snapshotLimit)) : 8;
   const cache = indicesOverviewCache.get(safeLimit) || {
     data: null,
@@ -494,11 +632,11 @@ export async function fetchSosoIndicesOverview(snapshotLimit = 8): Promise<unkno
   };
   indicesOverviewCache.set(safeLimit, cache);
 
-  return readCachedRequest(cache, SOSO_CLIENT_CACHE_MS, async () => {
+  return readCachedRequest(cache, SOSO_CLIENT_CACHE_MS, async (s?: AbortSignal) => {
     const params = new URLSearchParams({ snapshotLimit: String(safeLimit) });
-    const res = await fetch(apiUrl(`/api/soso/indices/overview?${params}`));
+    const res = await fetch(apiUrl(`/api/soso/indices/overview?${params}`), { signal: s });
     return readJson<unknown>(res);
-  });
+  }, signal);
 }
 
 // ── Concurrency Queue & Rate Limiter for Heavy Batch Requests ──
@@ -506,22 +644,43 @@ const MAX_CONCURRENT_INDEX_REQUESTS = 1;
 const DELAY_BETWEEN_REQUESTS_MS = 750;
 
 let activeIndexRequests = 0;
-const indexRequestQueue: (() => void)[] = [];
+interface QueueEntry { resolve: () => void; signal?: AbortSignal; reject: (err: Error) => void; }
+const indexRequestQueue: QueueEntry[] = [];
 
-async function queuedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+async function queuedFetch(input: RequestInfo | URL, init?: RequestInit, signal?: AbortSignal): Promise<Response> {
+  // If already aborted, bail immediately
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
   if (activeIndexRequests >= MAX_CONCURRENT_INDEX_REQUESTS) {
-    await new Promise<void>((resolve) => indexRequestQueue.push(resolve));
+    await new Promise<void>((resolve, reject) => {
+      const entry: QueueEntry = { resolve, signal, reject };
+      indexRequestQueue.push(entry);
+      // If signal aborts while waiting in queue, remove from queue and reject
+      signal?.addEventListener('abort', () => {
+        const idx = indexRequestQueue.indexOf(entry);
+        if (idx >= 0) indexRequestQueue.splice(idx, 1);
+        reject(new DOMException('Aborted', 'AbortError'));
+      }, { once: true });
+    });
   }
   
   activeIndexRequests++;
   try {
-    return await fetch(input, init);
+    return await fetch(input, { ...init, signal });
   } finally {
     setTimeout(() => {
       activeIndexRequests--;
-      if (indexRequestQueue.length > 0) {
-        const next = indexRequestQueue.shift();
-        if (next) next();
+      // Drain queue entries whose signals have already been aborted
+      while (indexRequestQueue.length > 0) {
+        const next = indexRequestQueue[0];
+        if (next.signal?.aborted) {
+          indexRequestQueue.shift();
+          next.reject(new DOMException('Aborted', 'AbortError'));
+          continue;
+        }
+        indexRequestQueue.shift();
+        next.resolve();
+        break;
       }
     }, DELAY_BETWEEN_REQUESTS_MS);
   }
@@ -537,30 +696,30 @@ const getCacheEntry = (map: Map<string, CachedRequest<unknown>>, key: string) =>
   return map.get(key)!;
 };
 
-export async function fetchSosoIndexSnapshot(ticker: string): Promise<unknown> {
+export async function fetchSosoIndexSnapshot(ticker: string, signal?: AbortSignal): Promise<unknown> {
   const cache = getCacheEntry(indexSnapshotCache, ticker);
-  return readCachedRequest(cache, INDEX_DETAIL_CLIENT_CACHE_MS, async () => {
-    const res = await queuedFetch(apiUrl(`/api/soso/indices/${ticker}/market-snapshot`));
+  return readCachedRequest(cache, INDEX_DETAIL_CLIENT_CACHE_MS, async (s?: AbortSignal) => {
+    const res = await queuedFetch(apiUrl(`/api/soso/indices/${ticker}/market-snapshot`), undefined, s);
     return readJson<unknown>(res);
-  });
+  }, signal);
 }
 
-export async function fetchSosoIndexConstituents(ticker: string): Promise<unknown> {
+export async function fetchSosoIndexConstituents(ticker: string, signal?: AbortSignal): Promise<unknown> {
   const cache = getCacheEntry(indexConstituentsCache, ticker);
-  return readCachedRequest(cache, INDEX_DETAIL_CLIENT_CACHE_MS, async () => {
-    const res = await queuedFetch(apiUrl(`/api/soso/indices/${ticker}/constituents`));
+  return readCachedRequest(cache, INDEX_DETAIL_CLIENT_CACHE_MS, async (s?: AbortSignal) => {
+    const res = await queuedFetch(apiUrl(`/api/soso/indices/${ticker}/constituents`), undefined, s);
     return readJson<unknown>(res);
-  });
+  }, signal);
 }
 
-export async function fetchSosoIndexKlines(ticker: string, interval: string = '1d'): Promise<unknown> {
+export async function fetchSosoIndexKlines(ticker: string, interval: string = '1d', signal?: AbortSignal): Promise<unknown> {
   const cacheKey = `${ticker}-${interval}`;
   const cache = getCacheEntry(indexKlinesCache, cacheKey);
-  return readCachedRequest(cache, INDEX_DETAIL_CLIENT_CACHE_MS, async () => {
+  return readCachedRequest(cache, INDEX_DETAIL_CLIENT_CACHE_MS, async (s?: AbortSignal) => {
     const params = new URLSearchParams();
     if (interval) params.set('interval', interval);
     const qs = params.toString();
-    const res = await queuedFetch(apiUrl(`/api/soso/indices/${ticker}/klines${qs ? `?${qs}` : ''}`));
+    const res = await queuedFetch(apiUrl(`/api/soso/indices/${ticker}/klines${qs ? `?${qs}` : ''}`), undefined, s);
     return readJson<unknown>(res);
-  });
+  }, signal);
 }

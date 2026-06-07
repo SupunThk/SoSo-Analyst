@@ -106,8 +106,8 @@ export const RecentTrades: React.FC<RecentTradesProps> = ({ symbol }) => {
 
       <div className="flex-1 overflow-y-hidden relative custom-scrollbar">
         <div className="absolute inset-0 overflow-y-auto">
-          {trades.map((trade) => (
-            <div key={trade.id} className="flex px-3 py-1 hover:bg-white/5 text-[11px] font-mono transition-colors">
+          {trades.map((trade, index) => (
+            <div key={`${trade.id}-${trade.time}-${index}`} className="flex px-3 py-1 hover:bg-white/5 text-[11px] font-mono transition-colors">
               <div className={`w-1/3 text-left ${trade.isBuyerMaker ? 'text-[#FF2A4D]' : 'text-[#00FF9D]'}`}>
                 {formatPrice(trade.price)}
               </div>

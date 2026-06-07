@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { fetchSosoIndices, fetchSosoIndicesOverview } from '@/lib/api';
+import { fetchSosoIndices, fetchSosoIndicesOverview, isAbortError } from '@/lib/api';
 import { IndexCard } from './IndexCard';
 
 interface IndexSummary {
@@ -46,11 +46,11 @@ export const IndexDashboard = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     const load = async () => {
       try {
-        const res = await fetchSosoIndicesOverview();
-        if (cancelled) return;
+        const res = await fetchSosoIndicesOverview(8, controller.signal);
+        if (controller.signal.aborted) return;
 
         const list = extractResponseList(res)
           .map(parseIndexSummary)
@@ -62,28 +62,30 @@ export const IndexDashboard = () => {
         } else {
           setError('Unexpected response format from indices API.');
         }
-      } catch {
+      } catch (err) {
+        if (isAbortError(err)) return;
         try {
-          const fallback = await fetchSosoIndices();
-          if (cancelled) return;
+          const fallback = await fetchSosoIndices(controller.signal);
+          if (controller.signal.aborted) return;
 
           const list = extractResponseList(fallback)
             .map(parseIndexSummary)
             .filter((item): item is IndexSummary => Boolean(item));
 
           setIndices(list);
-          setError(list.length ? 'Using index list without live snapshots.' : 'Failed to load indices data.');
-        } catch {
-          if (!cancelled) setError('Failed to load indices data.');
+          setError(list.length ? 'Using index list without live snapshots.' : null);
+        } catch (fallbackErr) {
+          if (isAbortError(fallbackErr)) return;
+          setError(null); // Stay in loading state instead of showing error
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
 
     load();
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, []);
 
@@ -115,7 +117,7 @@ export const IndexDashboard = () => {
   // ── Loading skeleton ──
   if (loading) {
     return (
-      <div className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 pt-20 space-y-6">
+      <div className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 pt-6 space-y-6">
         {/* Skeleton header */}
         <div className="animate-pulse space-y-3">
           <div className="h-7 w-56 rounded bg-white/[0.06]" />
@@ -148,7 +150,7 @@ export const IndexDashboard = () => {
   }
 
   return (
-    <div className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 pt-20 space-y-6">
+    <div className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 pt-6 space-y-6">
       {/* ── Header ── */}
       <div className="space-y-1">
         <div className="flex items-center gap-3">

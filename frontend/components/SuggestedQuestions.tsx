@@ -6,22 +6,21 @@ import Tooltip from '@mui/material/Tooltip';
 import { motion } from 'framer-motion';
 
 const QUESTIONS = [
-  { cmd: 'CMD-01', icon: '📊', text: 'Give me the current market regime, rotation leaders, active alerts, and opportunities.' },
-  { cmd: 'CMD-02', icon: '📈', text: 'Show the SoSo SSI index rotation map and explain leaders and laggards.' },
-  { cmd: 'CMD-03', icon: '🔎', text: 'Why is SOL moving? Use token intelligence, relative strength, SoDEX liquidity, and news.' },
-  { cmd: 'CMD-04', icon: '🚨', text: 'Which market alerts are firing right now and what exact data triggered them?' },
-  { cmd: 'CMD-05', icon: '🏦', text: "Summarize MicroStrategy's Bitcoin purchase history and latest accumulation." },
-  { cmd: 'CMD-06', icon: '🏦', text: 'Show the key public companies with Bitcoin treasury exposure.' },
-  { cmd: 'CMD-07', icon: '💼', text: 'Give me a crypto equities watchlist update for MSTR, COIN, MARA, and RIOT.' },
-  { cmd: 'CMD-08', icon: '📰', text: 'What are the hottest crypto news stories right now?' },
-  { cmd: 'CMD-09', icon: '🔍', text: 'Deep dive into Bitcoin — tokenomics, supply, and price trend analysis.' },
-  { cmd: 'CMD-10', icon: '🌐', text: 'Give me a full market overview — regime, BTC price, sectors, news, and macro calendar.' },
-  { cmd: 'CMD-11', icon: '📉', text: 'Show CPI and Fed Funds Rate history and their crypto market impact.' },
-  { cmd: 'CMD-12', icon: '🔥', text: 'What crypto sectors are trending? Show the sector spotlight.' },
-  { cmd: 'CMD-13', icon: '📈', text: 'Show me the SoSoValue SSI indices and their recent performance.' },
-  { cmd: 'CMD-14', icon: '💰', text: 'What are the latest crypto fundraising and VC investment rounds?' },
-  { cmd: 'CMD-15', icon: '💼', text: 'Analyze my portfolio — check my holdings, risk profile, and market fit.' },
-  { cmd: 'CMD-16', icon: '📘', text: 'Show SoDEX markets and the BTC-USD order book depth.' },
+  { cmd: 'CMD-01', icon: '📊', text: 'Give me a full market overview report — BTC price, top movers, sector trends, news, macro calendar, and strategic outlook.' },
+  { cmd: 'CMD-02', icon: '📰', text: 'Give me a headline-first crypto news report: top stories, why each matters, market readthrough, and what to watch next.' },
+  { cmd: 'CMD-03', icon: '🏦', text: 'Give me a US Bitcoin spot ETF flow report: latest flows, top funds, AUM/volume context, BTC price readthrough, and risks.' },
+  { cmd: 'CMD-04', icon: '🏦', text: "Give me a MicroStrategy Bitcoin treasury report: purchase history, latest accumulation, BTC amounts, and balance-sheet readthrough." },
+  { cmd: 'CMD-05', icon: '🏦', text: 'Give me a Bitcoin treasury companies report: key public companies, holdings, and balance-sheet readthrough.' },
+  { cmd: 'CMD-06', icon: '💼', text: 'Give me a crypto equities watchlist report for MSTR, COIN, MARA, and RIOT: prices, movers, and risks.' },
+  { cmd: 'CMD-07', icon: '🔥', text: 'Give me a ranked crypto sector report: sector leaders, laggards, key evidence, rotation takeaway, and risks.' },
+  { cmd: 'CMD-08', icon: '🔍', text: 'Give me a Bitcoin deep-dive report: tokenomics, supply, price trend, liquidity, and risks.' },
+  { cmd: 'CMD-09', icon: '⚖️', text: 'Compare Bitcoin and Ethereum in a report table: price, market cap, volume, relative strength, and takeaway.' },
+  { cmd: 'CMD-10', icon: '📉', text: 'Give me a macro history report for CPI and Fed Funds Rate: data trend, crypto impact, and watch-next events.' },
+  { cmd: 'CMD-11', icon: '📈', text: 'Give me a SoSoValue SSI index report: index performance, constituents, sector mapping, and rotation takeaway.' },
+  { cmd: 'CMD-12', icon: '📆', text: 'Give me a crypto macro calendar report: upcoming events, dates, expected impact, and what to watch next.' },
+  { cmd: 'CMD-13', icon: '💰', text: 'Give me an Ethereum price snapshot report: current price, 24h performance, volume, market cap, and context.' },
+  { cmd: 'CMD-14', icon: '📘', text: 'Give me a SoDEX markets report with BTC-USD order book depth, spreads, liquidity, and source scope.' },
+  { cmd: 'CMD-15', icon: '🚀', text: 'Give me a crypto fundraising report: recent rounds, amounts, investors, categories, and market readthrough.' },
 ];
 
 interface SuggestedQuestionsProps {

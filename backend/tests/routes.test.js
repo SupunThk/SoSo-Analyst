@@ -99,12 +99,13 @@ const testAgentStreamInjectsVerifiedWallet = async () => {
       return geminiStreamResponse('Portfolio analysis ready.');
     }
 
+    // Mock for the LLM intent classifier
     return {
       data: {
         candidates: [{
           content: {
             role: 'model',
-            parts: [{ text: 'Portfolio analysis ready.' }]
+            parts: [{ text: '{"intents": ["portfolio"]}' }]
           }
         }]
       }
@@ -168,13 +169,13 @@ const testAgentStreamInjectsVerifiedWallet = async () => {
     assert.equal(done.data.toolCalls.length, 1);
     assert.equal(done.data.toolCalls[0].name, 'get_wallet_holdings');
     assert.equal(done.data.toolCalls[0].input.address, wallet);
-    assert.ok(postedBodies[0].contents.some((item) =>
+
+    const streamBody = postedBodies.find(b => b.contents && b.contents.some(item => item.parts?.some(part => String(part.text || '').includes('DETERMINISTIC TOOL ROUTING HINT'))));
+    assert.ok(streamBody, 'Stream body should contain DETERMINISTIC TOOL ROUTING HINT');
+    assert.ok(streamBody.contents.some((item) =>
       item.parts?.some((part) => String(part.text || '').includes('CONNECTED_WALLET_CONTEXT'))
     ));
-    assert.ok(postedBodies[0].contents.some((item) =>
-      item.parts?.some((part) => String(part.text || '').includes('DETERMINISTIC TOOL ROUTING HINT'))
-    ));
-    assert.ok(postedBodies[0].contents.some((item) =>
+    assert.ok(streamBody.contents.some((item) =>
       item.parts?.some((part) => String(part.text || '').includes('PRELOADED_TOOL_RESULT: get_wallet_holdings'))
     ));
   } finally {
@@ -343,6 +344,14 @@ const testSodexProfileRouteBuildsRealDashboard = async () => {
   const wallet = ethers.Wallet.createRandom().address;
   process.env.SODEX_REST_BASE_URL = 'https://mainnet-gw.sodex.dev/api/v1';
 
+  User.findOne = async (query) => {
+    assert.equal(query.sessionTokenHash, hashValue('sodex-profile-token'));
+    return {
+      publicWalletAddress: wallet,
+      walletAddress: hashWallet(wallet)
+    };
+  };
+
   axios.get = async (url) => {
     if (url.endsWith(`/spot/accounts/${wallet}/state`)) {
       return {
@@ -413,7 +422,12 @@ const testSodexProfileRouteBuildsRealDashboard = async () => {
 
   const server = await startServer('/api/sodex', require('../routes/sodex'));
   try {
-    const response = await fetch(urlFor(server, `/api/sodex/profile/${wallet}`));
+    const unauthorized = await fetch(urlFor(server, `/api/sodex/profile/${wallet}`));
+    assert.equal(unauthorized.status, 401);
+
+    const response = await fetch(urlFor(server, `/api/sodex/profile/${wallet}`), {
+      headers: { Authorization: 'Bearer sodex-profile-token' }
+    });
     const body = await response.json();
 
     assert.equal(response.status, 200);

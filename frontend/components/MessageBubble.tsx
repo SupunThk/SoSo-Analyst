@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Message, MessageFeedbackRating } from '@/lib/types';
 import ToolCallBadge from './ToolCallBadge';
 import ReactMarkdown, { type Components } from 'react-markdown';
@@ -108,31 +108,43 @@ const AnimatedMarkdown: React.FC<{ content: string; animate: boolean }> = ({ con
 
   const shouldAnimateReveal = animate && !prefersReducedMotion;
   const [visibleLength, setVisibleLength] = useState(() => (shouldAnimateReveal ? 0 : content.length));
+  const hasStartedRef = useRef(false);
 
   useEffect(() => {
-    if (!shouldAnimateReveal) {
+    if (!shouldAnimateReveal || hasStartedRef.current) {
       return;
     }
 
-    const reset = setTimeout(() => setVisibleLength(0), 0);
-    const charsPerTick = Math.max(3, Math.ceil(content.length / 120));
-    const interval = setInterval(() => {
-      setVisibleLength((prev) => {
-        const next = prev + charsPerTick;
-        if (next >= content.length) {
-          clearInterval(interval);
-          return content.length;
-        }
+    hasStartedRef.current = true;
+    let currentPos = 0;
+    const totalChars = content.length;
+    
+    const duration = Math.min(1200, Math.max(400, totalChars * 8));
+    const charsPerTick = Math.max(1, Math.ceil(totalChars / (duration / 16)));
 
-        return next;
-      });
+    const interval = setInterval(() => {
+      currentPos += charsPerTick;
+      if (currentPos >= totalChars) {
+        setVisibleLength(totalChars);
+        clearInterval(interval);
+      } else {
+        setVisibleLength(currentPos);
+      }
     }, 16);
 
-    return () => {
-      clearTimeout(reset);
-      clearInterval(interval);
-    };
-  }, [shouldAnimateReveal, content]);
+    return () => clearInterval(interval);
+  }, [shouldAnimateReveal, content.length]);
+
+  // Handle case where animation is disabled AFTER component was already showing 0
+  useEffect(() => {
+    if (!shouldAnimateReveal && visibleLength < content.length) {
+      // Defer state update to next tick to avoid cascading render warning
+      const timer = setTimeout(() => {
+        setVisibleLength(content.length);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [shouldAnimateReveal, content.length, visibleLength]);
 
   const isRevealing = shouldAnimateReveal && visibleLength < content.length;
   const displayContent = shouldAnimateReveal ? content.slice(0, visibleLength) : content;
@@ -160,10 +172,18 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isThinking, stat
       return;
     }
 
+    // Reset when starting to think, deferred to avoid cascading render warning
+    const resetTimer = setTimeout(() => {
+      setElapsedSeconds(0);
+    }, 0);
+    
     const interval = setInterval(() => {
       setElapsedSeconds((prev) => prev + 1);
     }, 1000);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(resetTimer);
+      clearInterval(interval);
+    };
   }, [isThinking]);
 
   const formatTime = (date: Date) => {
@@ -201,8 +221,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isThinking, stat
       className={`group flex flex-col mb-6 ${isUser ? 'items-end' : 'items-start'} msg-enter`}
     >
       {/* Label row */}
-      <div className={`flex items-center gap-2 mb-1 px-1 font-mono text-[10px] uppercase tracking-wider ${isUser ? 'flex-row-reverse text-text-secondary' : 'text-accent-green font-bold'}`}>
-        <span>{isUser ? '> USER' : '◈ ANALYST'}</span>
+      <div className={`flex items-center gap-2 mb-1.5 px-1 font-mono text-[9px] md:text-[10px] uppercase tracking-[0.2em] ${isUser ? 'flex-row-reverse text-text-secondary' : 'text-accent-green font-bold'}`}>
+        <span className={!isUser ? 'text-glow-green' : ''}>{isUser ? '> USER' : '◈ ANALYST'}</span>
         <span className="opacity-30">│</span>
         <span className="opacity-50 tabular-nums">{formatTime(message.timestamp)}</span>
       </div>
@@ -235,20 +255,29 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isThinking, stat
               <div className="flex items-center gap-4">
                 {/* Radar sweep ring */}
                 <div className="relative w-8 h-8 flex-shrink-0">
-                  <svg className="w-8 h-8 radar-ring" viewBox="0 0 32 32">
+                  <svg className="w-8 h-8" viewBox="0 0 32 32">
                     <circle
                       cx="16" cy="16" r="13"
                       fill="none"
                       stroke="rgba(0, 255, 157, 0.15)"
                       strokeWidth="1.5"
                     />
-                    <path
-                      d="M16 3 A13 13 0 0 1 29 16"
-                      fill="none"
-                      stroke="#00FF9D"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                    />
+                    <g className="radar-ring">
+                      <path
+                        d="M16 3 A13 13 0 0 1 29 16"
+                        fill="none"
+                        stroke="#00FF9D"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                      />
+                      <path
+                        d="M16 29 A13 13 0 0 1 3 16"
+                        fill="none"
+                        stroke="rgba(0, 255, 157, 0.4)"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                      />
+                    </g>
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="w-2 h-2 bg-accent-green rounded-full radar-core shadow-[0_0_8px_rgba(0,255,157,0.55)]" />
@@ -256,7 +285,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isThinking, stat
                 </div>
 
                 <div className="flex flex-col gap-1 min-w-0">
-                  <span className="text-xs font-sans font-medium text-accent-green uppercase tracking-wider truncate">
+                  <span className="text-xs font-mono font-medium text-accent-green uppercase tracking-wider truncate animate-pulse">
                     {statusText || 'Querying data feeds...'}
                   </span>
                   <span className="text-[10px] font-mono text-text-secondary elapsed-badge">

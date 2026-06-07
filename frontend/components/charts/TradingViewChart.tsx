@@ -60,13 +60,31 @@ const isKlineRecord = (value: unknown): value is KlineRecord => {
   return row.t !== undefined && row.o !== undefined && row.h !== undefined && row.l !== undefined && row.c !== undefined && row.v !== undefined;
 };
 
-const fetchHistoricalData = async (symbol: string, interval: string) => {
-  const res = await fetch(`https://mainnet-gw.sodex.dev/api/v1/perps/markets/${symbol}/klines?interval=${interval}&limit=1000`);
-  if (!res.ok) throw new Error('Failed to fetch historical data');
+const fetchHistoricalData = async (symbol: string, interval: string, signal?: AbortSignal) => {
+  const res = await fetch(`https://mainnet-gw.sodex.dev/api/v1/perps/markets/${symbol}/klines?interval=${interval}&limit=1000`, { signal });
+  if (!res.ok) {
+    if (res.status === 429) {
+      // Wait and retry once on rate limit
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, 5000);
+        signal?.addEventListener('abort', () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')); }, { once: true });
+      });
+      const retryRes = await fetch(`https://mainnet-gw.sodex.dev/api/v1/perps/markets/${symbol}/klines?interval=${interval}&limit=1000`, { signal });
+      if (!retryRes.ok) throw new Error('Failed to fetch historical data');
+      const retryPayload = await retryRes.json() as KlineResponse;
+      const retryData = Array.isArray(retryPayload.data) ? retryPayload.data.filter(isKlineRecord) : [];
+      retryData.reverse();
+      return buildChartData(retryData);
+    }
+    throw new Error('Failed to fetch historical data');
+  }
   const payload = await res.json() as KlineResponse;
   const data = Array.isArray(payload.data) ? payload.data.filter(isKlineRecord) : [];
-  data.reverse(); // SoDEX returns newest first, but Lightweight Charts needs oldest first
-  
+  data.reverse();
+  return buildChartData(data);
+};
+
+const buildChartData = (data: KlineRecord[]): HistoricalChartData => {
   const candles: CandlestickData<Time>[] = [];
   const volumes: HistogramData<Time>[] = [];
   const closes: number[] = [];
@@ -189,12 +207,13 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
 
     let lastValidWsTime = 0;
     let isMounted = true;
+    const fetchController = new AbortController();
 
     const initData = async () => {
       setLoading(true);
       setError(null);
       try {
-        const data = await fetchHistoricalData(symbol, interval);
+        const data = await fetchHistoricalData(symbol, interval, fetchController.signal);
         if (!isMounted) return;
         historicalDataRef.current = data;
         
@@ -216,9 +235,10 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
         
         setLoading(false);
         connectWebSocket();
-      } catch {
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
         if (isMounted) {
-          setError("Failed to fetch historical data.");
+          setError(null); // Stay in loading state instead of showing error
           setLoading(false);
         }
       }
@@ -301,6 +321,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
 
     return () => {
       isMounted = false;
+      fetchController.abort();
       window.removeEventListener('resize', handleResize);
       if (wsRef.current) {
         wsRef.current.onclose = null;

@@ -14,14 +14,16 @@ import {
   fetchChatSession,
   submitMessageFeedback,
   fetchChats,
-  deleteChat
+  deleteChat,
+  isRateLimitError,
+  isUnauthorizedError
 } from '@/lib/api';
 
 export const WELCOME_MESSAGE: Message = {
   id: 'welcome',
   role: 'assistant',
   content:
-    "**SYSTEM INITIALIZED** — SoSo Analyst v3.0 online.\n\nConnected to real-time crypto markets, ETF flows, macro events, treasury data, tokenomics, SoDEX market data, SoSo SSI indices, and deterministic market intelligence.\n\n---\n\n**22 data tools active** — including regime detection, token intelligence, sector rotation, macro event history, wallet intelligence, and SoDEX order books.\n\n> ⚠️ **RESTRICTED SYSTEM**: This terminal is strictly calibrated for crypto market analysis. General knowledge queries will be rejected. See [SYSTEM MANUAL] for capabilities.\n\nType a query or select a command below to begin analysis.\n\nAvailable commands:\n- `/help` — Open system manual\n- `/clear` — Reset terminal session\n- `↑` / `↓` — Navigate command history",
+    "**SYSTEM INITIALIZED** — SoSo Analyst v3.0 online.\n\nConnected to real-time crypto markets, ETF flows, macro events, treasury data, tokenomics, SoDEX market data, SoSo SSI indices, and deterministic market intelligence.\n\n---\n\n**22 data tools active** — including token intelligence, sector spotlight, macro calendar, ETF flow tracking, crypto equities, wallet analysis, and SoDEX order books.\n\n> ⚠️ **RESTRICTED SYSTEM**: This terminal is strictly calibrated for crypto market analysis. General knowledge queries will be rejected. See [SYSTEM MANUAL] for capabilities.\n\nType a query or select a command below to begin analysis.\n\nAvailable commands:\n- `/help` — Open system manual\n- `/clear` — Reset terminal session\n- `↑` / `↓` — Navigate command history",
   timestamp: new Date(),
 };
 
@@ -45,7 +47,7 @@ interface TerminalState {
   setChats: (chats: ChatSessionSummary[]) => void;
   setActiveChatId: (id: string | null) => void;
   setIsChatsLoading: (isLoading: boolean) => void;
-  loadChats: (walletAddress: string, token: string) => Promise<void>;
+  loadChats: (walletAddress: string, token: string, onUnauthorized?: () => void) => Promise<void>;
   handleDeleteChat: (chatId: string, authSession: AuthSession | null, onDeletedActive?: () => void) => Promise<void>;
 
   input: string;
@@ -89,12 +91,17 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   setActiveChatId: (activeChatId) => set({ activeChatId }),
   setIsChatsLoading: (isChatsLoading) => set({ isChatsLoading }),
   
-  loadChats: async (address, token) => {
+  loadChats: async (address, token, onUnauthorized) => {
     set({ isChatsLoading: true });
     try {
       const chatList = await fetchChats(address, token);
       set({ chats: chatList, isChatsLoading: false });
     } catch (err) {
+      if (isUnauthorizedError(err)) {
+        set({ chats: [], isChatsLoading: false, activeChatId: null });
+        onUnauthorized?.();
+        return;
+      }
       console.error("Failed to load chats:", err);
       set({ chats: [], isChatsLoading: false });
     }
@@ -252,6 +259,12 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
         onRefreshChats();
       } catch (err) {
         console.error("Failed to create chat record", err);
+        get().setMessages(prev => [...prev, {
+          id: `warn-${Date.now()}`,
+          role: 'assistant',
+          content: '**Note:** Chat history could not be saved. Analysis will continue, but this session will not be persisted.',
+          timestamp: new Date(),
+        }]);
       }
     }
 
@@ -297,13 +310,25 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       },
       onError: (errorMessage) => {
         streamCompleted = false;
+
+        // Detect rate-limit errors and show a friendly loading message instead
+        const isRateLimit = /rate limit|too many requests|\b429\b/i.test(errorMessage);
+        const displayMessage = isRateLimit
+          ? 'The system is processing a high volume of requests. Please wait a moment and try again.'
+          : errorMessage;
+
         const errorMsg: Message = {
           id: `err-${Date.now()}`,
           role: 'assistant',
-          content: `**⚠ ERROR:** ${errorMessage}\n\nConnection to analysis engine failed. Retry your query or type \`/clear\` to reset.`,
+          content: isRateLimit
+            ? `**⏳ PLEASE WAIT** — ${displayMessage}`
+            : `**⚠ ERROR:** ${displayMessage}\n\nConnection to analysis engine failed. Retry your query or type \`/clear\` to reset.`,
           timestamp: new Date(),
         };
-        get().setMessages(prev => [...prev, errorMsg]);
+        get().setMessages(prev => {
+          const withoutPartial = hasAddedMsg ? prev.filter(m => m.id !== assistantMsgId) : prev;
+          return [...withoutPartial, errorMsg];
+        });
         get().setIsThinking(false);
         get().setStatusText('');
         get().setLiveToolCalls([]);
@@ -313,6 +338,8 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     }, walletAddress, currentChatId, authSession?.token);
 
     if (streamCompleted && currentChatId && authSession) {
+      // Only refresh from server if this is a persisted chat that needs sync verification.
+      // This avoids a redundant fetchChatSession call when the stream onDone already gave us the answer.
       try {
         const session = await fetchChatSession(currentChatId, authSession.token);
         const savedCount = session.messages?.length || 0;
@@ -322,7 +349,13 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
           if (walletAddress) onRefreshChats();
         }
       } catch (err) {
-        console.error("Failed to refresh saved session:", err);
+        // Silently ignore refresh failures — the user already has the answer from the stream
+        if (isRateLimitError(err)) {
+          // Don't waste rate limit quota on non-essential refresh
+          console.debug('Skipped post-stream session refresh due to rate limit');
+        } else {
+          console.error('Failed to refresh saved session:', err);
+        }
       }
     }
   }

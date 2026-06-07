@@ -22,14 +22,25 @@ let tickerInflight = null;
 const messageSchema = z.object({
   role: z.enum(['user', 'assistant']),
   content: z.string().trim().min(1).max(200000)
-}).passthrough();
+});
+
+const conversationPartSchema = z.object({
+  text: z.string().max(200000)
+});
 
 const conversationHistorySchema = z.array(z.object({
   role: z.enum(['user', 'model']),
-  parts: z.array(z.object({
-    text: z.string().max(200000)
-  }).passthrough()).max(20)
-}).passthrough()).max(30);
+  parts: z.array(conversationPartSchema).min(1).max(20)
+})).max(30);
+
+const sanitizeConversationHistory = (history) => {
+  const parsed = conversationHistorySchema.safeParse(history);
+  if (!parsed.success) {
+    return [];
+  }
+
+  return parsed.data;
+};
 
 const chatRequestSchema = z.object({
   messages: z.array(messageSchema).min(1).max(30),
@@ -157,9 +168,9 @@ const trimConversationHistory = (history, maxTurns = 8) => {
   ];
 };
 
-const buildContents = (conversationHistory, userMessage, walletAddress, extraContext = [], routingOptions = {}) => {
+const buildContents = async (conversationHistory, userMessage, walletAddress, extraContext = [], routingOptions = {}) => {
   const trimmedHistory = trimConversationHistory(conversationHistory);
-  const routingContext = buildToolRoutingContext(userMessage, routingOptions);
+  const routingContext = await buildToolRoutingContext(userMessage, routingOptions);
   return [
     ...(trimmedHistory || []),
     ...(walletAddress ? [buildWalletContextContent(walletAddress)] : []),
@@ -252,7 +263,8 @@ const runAgentLoop = async (contents, options = {}) => {
     initialToolResults = [],
     userMessage = '',
     allowedFunctionNames = [],
-    budget = { max: 4 }
+    budget = { max: 4 },
+    shouldAbort = () => false
   } = options;
 
   const requestStartedAt = Date.now();
@@ -281,6 +293,11 @@ const runAgentLoop = async (contents, options = {}) => {
   }
 
   const callGemini = async (currentContents) => {
+    if (shouldAbort()) {
+      const error = new Error('Client disconnected');
+      error.status = 499;
+      throw error;
+    }
     const callOptions = {
       toolCallCount: toolCallsMade.length,
       allowedFunctionNames
@@ -297,6 +314,12 @@ const runAgentLoop = async (contents, options = {}) => {
   let toolCallsToExecute = getFunctionCalls(previousResponse);
 
   for (let iteration = 1; iteration <= MAX_GEMINI_ITERATIONS && toolCallsToExecute.length > 0; iteration++) {
+    if (shouldAbort()) {
+      const error = new Error('Client disconnected');
+      error.status = 499;
+      throw error;
+    }
+
     // Enforce tool-call budget: cap total invocations
     const budgetRemaining = budget.max - totalToolInvocations;
     if (budgetRemaining <= 0) {
@@ -400,7 +423,7 @@ const runAgentLoop = async (contents, options = {}) => {
     const hasTextAnswer = getCandidateParts(previousResponse).some((part) =>
       typeof part.text === 'string' && part.text.trim().length > 50
     );
-    if (hasTextAnswer && toolCallsToExecute.length > 0 && toolCallsMade.length >= 3) {
+    if (hasTextAnswer && toolCallsToExecute.length > 0 && totalToolInvocations >= budget.max) {
       break;
     }
   }
@@ -455,12 +478,12 @@ const handleChat = async (req, res) => {
   if (!payload) return;
 
   const walletContext = await getVerifiedWalletContext(req, payload.walletAddress);
-  const toolAllowlist = getToolAllowlist(payload.userMessage);
+  const toolAllowlist = await getToolAllowlist(payload.userMessage);
 
   try {
     const preload = await preloadPortfolioHoldings(payload, walletContext);
-    const contents = buildContents(
-      payload.conversationHistory,
+    const contents = await buildContents(
+      sanitizeConversationHistory(payload.conversationHistory),
       payload.userMessage,
       walletContext.verifiedWalletAddress,
       preload.extraContext,
@@ -493,8 +516,15 @@ const handleChatStream = async (req, res) => {
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders?.();
 
+  let clientDisconnected = false;
+  res.on('close', () => {
+    if (!res.writableFinished) {
+      clientDisconnected = true;
+    }
+  });
+
   const send = (event, data) => {
-    if (res.writableEnded) return;
+    if (clientDisconnected || res.writableEnded) return;
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   };
 
@@ -519,7 +549,7 @@ const handleChatStream = async (req, res) => {
   if (!payload) return;
 
   const walletContext = await getVerifiedWalletContext(req, payload.walletAddress);
-  const toolAllowlist = getToolAllowlist(payload.userMessage);
+  const toolAllowlist = await getToolAllowlist(payload.userMessage);
 
   try {
     send('status', { phase: 'thinking', message: 'Analyzing your query...' });
@@ -528,8 +558,8 @@ const handleChatStream = async (req, res) => {
       onToolStart: ({ name, args, iteration }) => send('tool_start', { name, args, iteration }),
       onToolDone: (toolRecord) => send('tool_done', toolRecord)
     });
-    const contents = buildContents(
-      payload.conversationHistory,
+    const contents = await buildContents(
+      sanitizeConversationHistory(payload.conversationHistory),
       payload.userMessage,
       walletContext.verifiedWalletAddress,
       preload.extraContext,
@@ -545,8 +575,13 @@ const handleChatStream = async (req, res) => {
       onChunk: (text) => send('chunk', { text }),
       onToolStart: ({ name, args, iteration }) => send('tool_start', { name, args, iteration }),
       onToolDone: (toolRecord) => send('tool_done', toolRecord),
-      onStatus: (status) => send('status', status)
+      onStatus: (status) => send('status', status),
+      shouldAbort: () => clientDisconnected || res.writableEnded
     });
+
+    if (clientDisconnected || res.writableEnded) {
+      return;
+    }
 
     send('status', { phase: 'generating', message: 'Synthesizing analysis...' });
     send('done', result);
@@ -554,6 +589,9 @@ const handleChatStream = async (req, res) => {
     await saveStreamedChat(req, payload, walletContext, result);
     res.end();
   } catch (error) {
+    if (error.status === 499) {
+      return;
+    }
     const errMsg = error.status ? error.message : formatGeminiErrorMessage(error);
     const status = error.status || error.response?.status || 'unknown';
     const detail = error.response?.data?.error?.message || error.message;
@@ -637,7 +675,7 @@ const handleTicker = async (req, res) => {
     const snapshots = await tickerInflight;
     res.json({ data: snapshots });
   } catch (error) {
-    res.status(500).json({ error: true, message: error.message });
+    res.status(500).json({ error: true, message: 'Failed to load ticker data.' });
   }
 };
 

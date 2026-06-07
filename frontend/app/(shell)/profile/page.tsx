@@ -1,12 +1,10 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import Header from '@/components/Header';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { SodexBalance, SodexOrder, SodexPosition, SodexProfile, SodexTrade } from '@/lib/types';
-import { fetchSodexProfile } from '@/lib/api';
+import { fetchSodexProfile, isRateLimitError, isAbortError } from '@/lib/api';
 import { useAuth } from '@/components/AuthProvider';
-import SystemManualModal from '@/components/SystemManualModal';
 
 const formatUsd = (value: number | null | undefined) => {
   if (value === null || value === undefined || !Number.isFinite(Number(value))) return '--';
@@ -199,20 +197,31 @@ const OrderList = ({ orders }: { orders: SodexOrder[] }) => {
 };
 
 export default function ProfilePage() {
-  const { walletAddress, authSession, handleWalletConnect } = useAuth();
+  const { walletAddress, authSession } = useAuth();
   const [profile, setProfile] = useState<SodexProfile | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [tradeFilter, setTradeFilter] = useState<'all' | 'spot' | 'perps'>('all');
-  const [isManualOpen, setIsManualOpen] = useState(false);
+  const profileRef = useRef<SodexProfile | null>(null);
 
-  const loadProfile = useCallback(async (address: string, token?: string | null) => {
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
+
+  const loadProfile = useCallback(async (address: string, token?: string | null, signal?: AbortSignal) => {
     try {
       setIsLoading(true);
       setErrorMessage(null);
-      const data = await fetchSodexProfile(address, token);
+      const data = await fetchSodexProfile(address, token, signal);
       setProfile(data);
     } catch (err) {
+      if (isAbortError(err)) return;
+      if (isRateLimitError(err)) {
+        if (!profileRef.current) {
+          setErrorMessage(null);
+        }
+        return;
+      }
       setProfile(null);
       setErrorMessage(err instanceof Error ? err.message : 'Failed to load SoDEX profile data.');
     } finally {
@@ -222,10 +231,14 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (walletAddress && authSession?.token) {
+      const controller = new AbortController();
       const timer = window.setTimeout(() => {
-        void loadProfile(walletAddress, authSession.token);
+        void loadProfile(walletAddress, authSession.token, controller.signal);
       }, 0);
-      return () => window.clearTimeout(timer);
+      return () => {
+        window.clearTimeout(timer);
+        controller.abort();
+      };
     }
   }, [walletAddress, authSession?.token, loadProfile]);
 
@@ -235,26 +248,19 @@ export default function ProfilePage() {
   }, [profile?.recentTrades, tradeFilter]);
 
   return (
-    <div className="flex flex-col h-screen w-screen max-w-[100vw] bg-background overflow-hidden font-sans matrix-grid text-text-primary">
-      <Header
-        onConnectWallet={handleWalletConnect}
-        walletAddress={walletAddress}
-        onOpenManual={() => setIsManualOpen(true)}
-      />
-
-      <main className="flex-1 overflow-y-auto scroll-smooth p-4 md:p-8 relative z-10">
-        <div className="max-w-6xl mx-auto space-y-6 md:space-y-8">
-          <div className="flex flex-col gap-4 border-b border-border/40 pb-6">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 text-text-secondary hover:text-accent-green transition-colors text-xs font-mono uppercase tracking-widest w-fit"
-            >
-              <span aria-hidden="true">←</span> Back to Terminal
-            </Link>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-sans font-semibold tracking-tight text-white flex items-center gap-3">
-                <span className="text-accent-amber text-glow-amber">/</span> SoDEX Profile
-              </h1>
+    <div className="flex-1 overflow-y-auto scroll-smooth p-4 md:p-8 relative z-10 w-full h-full">
+      <div className="max-w-6xl mx-auto space-y-6 md:space-y-8">
+        <div className="flex flex-col gap-4 border-b border-border/40 pb-6">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-text-secondary hover:text-accent-green transition-colors text-xs font-mono uppercase tracking-widest w-fit"
+          >
+            <span aria-hidden="true">←</span> Back to Terminal
+          </Link>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-sans font-semibold tracking-tight text-white flex items-center gap-3">
+              <span className="text-accent-amber text-glow-amber">/</span> SoDEX Profile
+            </h1>
               <p className="text-text-secondary font-sans text-sm mt-2">
                 {walletAddress ? `Connected: ${shortAddress(walletAddress)}` : 'Connect wallet to load live SoDEX account state'}
               </p>
@@ -388,11 +394,6 @@ export default function ProfilePage() {
             </>
           )}
         </div>
-      </main>
-
-      <div className="crt-overlay pointer-events-none fixed inset-0 z-50" />
-      <div className="crt-vignette pointer-events-none fixed inset-0 z-50" />
-      <SystemManualModal isOpen={isManualOpen} onClose={() => setIsManualOpen(false)} />
     </div>
   );
 }

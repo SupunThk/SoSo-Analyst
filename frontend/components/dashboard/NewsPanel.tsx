@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { fetchSosoHotNews } from '@/lib/api';
+import React, { useEffect, useRef, useState } from 'react';
+import { fetchSosoHotNews, isAbortError } from '@/lib/api';
 import { PanelHeader, LoadingPanel } from './ui';
 
 interface NewsItem {
@@ -34,29 +34,37 @@ const formatReleaseTime = (value: string | number | undefined) => {
   return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
+const NEWS_POLL_INTERVAL_MS = 180_000; // 180s — news doesn't change every minute
+
 export const NewsPanel = () => {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const latestNewsRef = useRef<NewsItem[]>([]);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
+
     const load = async () => {
       try {
-        const res = await fetchSosoHotNews();
-        if (!cancelled) {
-          setNews(extractNewsItems(res).slice(0, 5));
-        }
+        const res = await fetchSosoHotNews(controller.signal);
+        const items = extractNewsItems(res).slice(0, 5);
+        latestNewsRef.current = items;
+        setNews(items);
       } catch (err) {
-        console.error('Failed to fetch hot news', err);
+        if (isAbortError(err)) return;
+        // On any error, keep showing stale news
+        if (latestNewsRef.current.length > 0) {
+          setNews(latestNewsRef.current);
+        }
       } finally {
-        if (!cancelled) setLoading(false);
+        setLoading(false);
       }
     };
     
     load();
-    const interval = window.setInterval(load, 60000);
+    const interval = window.setInterval(load, NEWS_POLL_INTERVAL_MS);
     return () => {
-      cancelled = true;
+      controller.abort();
       window.clearInterval(interval);
     };
   }, []);

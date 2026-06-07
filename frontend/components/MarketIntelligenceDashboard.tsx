@@ -5,7 +5,7 @@ import Alert from '@mui/material/Alert';
 import Chip from '@mui/material/Chip';
 import { motion } from 'framer-motion';
 import { MarketIntelligence, TokenIntelligence } from '@/lib/types';
-import { fetchMarketIntelligence, fetchTokenIntelligence } from '@/lib/api';
+import { fetchMarketIntelligence, fetchTokenIntelligence, isAbortError, isRateLimitError } from '@/lib/api';
 
 import { MetricPill, LoadingPanel, updatedLabel, formatCompact } from './dashboard/ui';
 import { RegimePanel } from './dashboard/RegimePanel';
@@ -47,62 +47,68 @@ const MarketIntelligenceDashboard: React.FC<MarketIntelligenceDashboardProps> = 
   const latestTokenRef = useRef<TokenIntelligence | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
 
     const load = async () => {
       try {
         setError(null);
-        const intelligence = await fetchMarketIntelligence();
-        if (!cancelled) {
-          latestMarketDataRef.current = intelligence;
-          setData(intelligence);
-          setWarning(null);
-        }
+        const intelligence = await fetchMarketIntelligence(controller.signal);
+        if (controller.signal.aborted) return;
+        latestMarketDataRef.current = intelligence;
+        setData(intelligence);
+        setWarning(null);
+        setLoading(false);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Market intelligence failed.';
-        if (!cancelled) {
+        if (isAbortError(err) || controller.signal.aborted) return;
+        // Rate limit: silently keep stale data, never show rate-limit error
+        if (isRateLimitError(err)) {
           if (latestMarketDataRef.current) {
-            setWarning(message);
-          } else {
-            setError(message);
+            setData(latestMarketDataRef.current);
+            setWarning(null);
           }
+          setLoading(false);
+          // No stale data — stay in loading state, retry will happen next interval
+          return;
         }
-      } finally {
-        if (!cancelled) setLoading(false);
+        const message = err instanceof Error ? err.message : 'Market intelligence failed.';
+        if (latestMarketDataRef.current) {
+          setWarning(message);
+        } else {
+          setError(message);
+        }
+        setLoading(false);
       }
     };
 
     load();
     const interval = window.setInterval(load, 60000);
     return () => {
-      cancelled = true;
+      controller.abort();
       window.clearInterval(interval);
     };
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
 
     const loadToken = async () => {
       setTokenLoading(true);
       try {
-        const intelligence = await fetchTokenIntelligence(selectedToken);
-        if (!cancelled) {
-          latestTokenRef.current = intelligence;
-          setToken(intelligence);
-        }
-      } catch {
-        if (!cancelled) {
-          setToken(latestTokenRef.current);
-        }
+        const intelligence = await fetchTokenIntelligence(selectedToken, controller.signal);
+        latestTokenRef.current = intelligence;
+        setToken(intelligence);
+      } catch (err) {
+        if (isAbortError(err)) return;
+        // On any error (including rate limit), keep stale token data
+        setToken(latestTokenRef.current);
       } finally {
-        if (!cancelled) setTokenLoading(false);
+        setTokenLoading(false);
       }
     };
 
     loadToken();
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [selectedToken]);
 

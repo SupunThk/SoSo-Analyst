@@ -106,6 +106,17 @@ const toNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const normalizeEtfType = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'btc' || normalized === 'bitcoin' || normalized === 'us-btc-spot') {
+    return 'us-btc-spot';
+  }
+  if (normalized === 'eth' || normalized === 'ethereum' || normalized === 'us-eth-spot') {
+    return 'us-eth-spot';
+  }
+  return value;
+};
+
 const getBoundedSnapshotLimit = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return INDEX_OVERVIEW_SNAPSHOT_LIMIT;
@@ -174,7 +185,9 @@ const sosoPostRequest = async (path, req, res, baseUrl = OPENAPI_V1_URL) => {
 
     for (const key of allowedBodyParams) {
       if (req.body?.[key] !== undefined) {
-        filteredBody[key] = req.body[key];
+        filteredBody[key] = path.startsWith('/etf/') && key === 'type'
+          ? normalizeEtfType(req.body[key])
+          : req.body[key];
       }
     }
 

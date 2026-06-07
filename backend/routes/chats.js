@@ -124,7 +124,8 @@ router.post('/auth/verify', async (req, res) => {
 
   try {
     const walletAddress = getWalletAddress(data.walletAddress);
-    const user = await User.findOne({ walletAddress: hashWallet(walletAddress) });
+    const walletHash = hashWallet(walletAddress);
+    const user = await User.findOne({ walletAddress: walletHash });
 
     if (!user?.loginNonce || !user.loginNonceExpiresAt || user.loginNonceExpiresAt <= new Date()) {
       return res.status(400).json({ error: 'Login nonce is missing or expired.' });
@@ -139,14 +140,32 @@ router.post('/auth/verify', async (req, res) => {
 
     const token = createSessionToken();
     const sessionExpiresAt = new Date(Date.now() + SESSION_TTL_MS);
+    const expectedNonce = user.loginNonce;
 
-    user.publicWalletAddress = walletAddress;
-    user.lastLogin = new Date();
-    user.loginNonce = null;
-    user.loginNonceExpiresAt = null;
-    user.sessionTokenHash = hashValue(token);
-    user.sessionExpiresAt = sessionExpiresAt;
-    await user.save();
+    const updatedUser = await User.findOneAndUpdate(
+      {
+        walletAddress: walletHash,
+        loginNonce: expectedNonce,
+        loginNonceExpiresAt: { $gt: new Date() }
+      },
+      {
+        $set: {
+          publicWalletAddress: walletAddress,
+          lastLogin: new Date(),
+          sessionTokenHash: hashValue(token),
+          sessionExpiresAt
+        },
+        $unset: {
+          loginNonce: '',
+          loginNonceExpiresAt: ''
+        }
+      },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(400).json({ error: 'Login nonce is missing, expired, or already used.' });
+    }
 
     res.json({
       success: true,
@@ -188,7 +207,10 @@ router.get('/:walletAddress', requireSession, async (req, res) => {
   if (!ensureDatabase(res)) return;
 
   const walletAddress = getWalletAddress(req.params.walletAddress);
-  if (!walletAddress || !ensureWalletOwner(req, res, walletAddress)) {
+  if (!walletAddress) {
+    return res.status(400).json({ error: 'walletAddress must be a valid Ethereum address' });
+  }
+  if (!ensureWalletOwner(req, res, walletAddress)) {
     return;
   }
 

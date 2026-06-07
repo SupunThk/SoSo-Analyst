@@ -130,10 +130,10 @@
   {
     "id": "sector-analysis",
     "query": "Which crypto sectors are hot right now?",
-    "expectedTools": ["get_sector_spotlight", "get_index_overview"],
+    "expectedTools": ["get_market_intelligence", "get_sector_spotlight", "get_index_overview"],
     "intent": "sector",
     "matchMode": "any",
-    "expectedBudget": "standard"
+    "expectedBudget": "market"
   },
   {
     "id": "btc-supply",
@@ -141,5 +141,26 @@
     "expectedTools": ["get_token_economics"],
     "intent": "tokenomics",
     "expectedBudget": "simple"
+  },
+  {
+    "id": "compound-news-regime",
+    "query": "What are the hottest crypto news stories right now and how do they affect the regime?",
+    "expectedTools": ["get_market_intelligence", "get_hot_news_digest"],
+    "matchMode": "any",
+    "expectedBudget": "market"
+  },
+  {
+    "id": "compound-sector-news",
+    "query": "Which sectors are hot and what are the latest crypto news stories?",
+    "expectedTools": ["get_sector_spotlight", "get_hot_news_digest"],
+    "matchMode": "any",
+    "expectedBudget": "market"
+  },
+  {
+    "id": "compound-regime-macro",
+    "query": "What is the market regime and are there any upcoming FOMC events?",
+    "expectedTools": ["get_market_intelligence", "get_macro_crypto_calendar"],
+    "matchMode": "any",
+    "expectedBudget": "standard"
   }
 ]

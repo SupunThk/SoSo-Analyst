@@ -1,16 +1,11 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import Button from '@mui/material/Button';
 import Tooltip from '@mui/material/Tooltip';
 import { AnimatePresence, motion } from 'framer-motion';
-import Header from '@/components/Header';
-import LiveTicker from '@/components/LiveTicker';
 import SuggestedQuestions from '@/components/SuggestedQuestions';
 import MessageBubble from '@/components/MessageBubble';
-import TerminalBoot from '@/components/TerminalBoot';
-import SystemManualModal from '@/components/SystemManualModal';
-import Sidebar from '@/components/Sidebar';
 import HeroState from '@/components/HeroState';
 
 import { useAuth } from '@/hooks/useAuth';
@@ -18,20 +13,16 @@ import { useTerminalStore, WELCOME_MESSAGE } from '@/store/useTerminalStore';
 
 
 export default function Home() {
-  const [booting, setBooting] = useState(true);
-  const [isManualOpen, setIsManualOpen] = useState(false);
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { walletAddress, authSession, handleWalletConnect } = useAuth();
+  const { walletAddress, authSession, handleWalletConnect, handleLogout } = useAuth();
   
   const {
-    chats, activeChatId, setActiveChatId, setChats, setIsChatsLoading, loadChats, handleDeleteChat, isChatsLoading,
+    activeChatId, setActiveChatId, loadChats,
     input, setInput, addCommand, handleKeyDown,
     messages, setMessages, isThinking, statusText, liveToolCalls, connectionStatus,
-    clearChat, handleMessageFeedback, loadSession, handleSubmit
+    handleMessageFeedback, handleSubmit
   } = useTerminalStore();
 
   const handleNewChat = useCallback(() => {
@@ -56,54 +47,13 @@ export default function Home() {
   }, [messages, isThinking, liveToolCalls]);
 
   useEffect(() => {
-    if (!booting) {
-      inputRef.current?.focus();
-    }
-  }, [booting]);
+    const timer = setTimeout(() => inputRef.current?.focus(), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
-        e.preventDefault();
-        handleClear();
-      }
-      if (e.key === 'Escape') {
-        if (isManualOpen) {
-          setIsManualOpen(false);
-        } else if (isMobileSidebarOpen) {
-          setIsMobileSidebarOpen(false);
-        } else {
-          inputRef.current?.blur();
-        }
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [handleClear, isManualOpen, isMobileSidebarOpen]);
-
-  useEffect(() => {
-    if (walletAddress && authSession) {
-      loadChats(walletAddress, authSession.token);
-      return;
-    }
-
-    setChats([]);
-    setIsChatsLoading(false);
-    setActiveChatId(null);
-    clearChat();
-  }, [walletAddress, authSession, loadChats, setChats, setIsChatsLoading, setActiveChatId, clearChat]);
+  const openManual = () => window.dispatchEvent(new CustomEvent('soso:open-manual'));
 
   const onWalletConnect = (conn: import('@/lib/types').WalletConnection) => handleWalletConnect(conn);
-
-  const onSelectChat = (chatId: string) => {
-    if (authSession) {
-      loadSession(chatId, authSession.token, setActiveChatId);
-    }
-  };
-
-  const onDeleteChat = (chatId: string) => {
-    handleDeleteChat(chatId, authSession, handleNewChat);
-  };
 
   const onFeedback = (messageId: string, rating: import('@/lib/types').MessageFeedbackRating) => {
     handleMessageFeedback(messageId, rating, activeChatId, authSession);
@@ -122,7 +72,7 @@ export default function Home() {
 
     if (text.trim().toLowerCase() === '/help') {
       setInput('');
-      setIsManualOpen(true);
+      openManual();
       return;
     }
 
@@ -135,49 +85,17 @@ export default function Home() {
       authSession, 
       activeChatId, 
       setActiveChatId, 
-      () => { if (walletAddress && authSession) loadChats(walletAddress, authSession.token); }
+      () => { if (walletAddress && authSession) loadChats(walletAddress, authSession.token, handleLogout); }
     );
   };
 
-  if (booting) {
-    return <TerminalBoot onComplete={() => setBooting(false)} />;
-  }
-
   return (
-    <div className="flex h-screen w-screen max-w-[100vw] bg-background overflow-hidden font-sans matrix-grid text-text-primary">
-      <Sidebar
-        isOpen={true}
-        isMobileOpen={isMobileSidebarOpen}
-        onCloseMobile={() => setIsMobileSidebarOpen(false)}
-        chats={chats}
-        activeChatId={activeChatId}
-        onSelectChat={onSelectChat}
-        onNewChat={handleNewChat}
-        onDeleteChat={onDeleteChat}
-        onAnalyzePortfolio={() => onSubmit(undefined, 'Analyze my portfolio — check my holdings, risk profile, and market fit.')}
-        onOpenManual={() => setIsManualOpen(true)}
-        walletAddress={walletAddress}
-        isChatsLoading={isChatsLoading}
-      />
+    <>
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {isThinking ? statusText || 'Analyzing your query' : ''}
+      </div>
 
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className="flex-1 min-w-0 w-full max-w-full flex flex-col h-screen max-h-screen relative overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-accent-green/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-      >
-        <div className="sr-only" aria-live="polite" aria-atomic="true">
-          {isThinking ? statusText || 'Analyzing your query' : ''}
-        </div>
-        <Header
-          onOpenManual={() => setIsManualOpen(true)}
-          onConnectWallet={onWalletConnect}
-          walletAddress={walletAddress}
-          onToggleMobileSidebar={() => setIsMobileSidebarOpen((prev) => !prev)}
-          mobileSidebarOpen={isMobileSidebarOpen}
-        />
-        <LiveTicker />
-
-        {/* ═══════ EMPTY STATE: HERO SECTION ═══════ */}
+      {/* ═══════ EMPTY STATE: HERO SECTION ═══════ */}
         <AnimatePresence mode="wait">
         {isEmptyState ? (
           <motion.div
@@ -190,7 +108,7 @@ export default function Home() {
           >
             <HeroState 
               onRunQuery={(q) => onSubmit(undefined, q)} 
-              onOpenManual={() => setIsManualOpen(true)} 
+              onOpenManual={openManual} 
               onConnectWallet={onWalletConnect}
               walletAddress={walletAddress} 
             />
@@ -322,7 +240,7 @@ export default function Home() {
               <div className="flex items-center gap-3 md:gap-4">
                 <button
                   type="button"
-                  onClick={() => setIsManualOpen(true)}
+                  onClick={openManual}
                   className="text-[8px] text-text-secondary font-mono tracking-widest uppercase rounded-sm px-1.5 py-1 hover:text-accent-green hover:bg-white/[0.04] transition-colors"
                 >
                   [/HELP]
@@ -341,13 +259,6 @@ export default function Home() {
             </div>
           </div>
         </div>
-
-        {/* CRT Overlays */}
-        <div className="crt-overlay pointer-events-none" />
-        <div className="crt-vignette pointer-events-none" />
-
-        <SystemManualModal isOpen={isManualOpen} onClose={() => setIsManualOpen(false)} />
-      </main>
-    </div>
+    </>
   );
 }

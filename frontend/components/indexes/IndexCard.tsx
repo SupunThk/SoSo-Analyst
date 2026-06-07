@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { fetchSosoIndexSnapshot, fetchSosoIndexConstituents, fetchSosoIndexKlines } from '@/lib/api';
+import { fetchSosoIndexSnapshot, fetchSosoIndexConstituents, fetchSosoIndexKlines, isAbortError } from '@/lib/api';
 import SparklineChart from './SparklineChart';
 import ConstituentBar from './ConstituentBar';
 
@@ -81,72 +81,81 @@ export const IndexCard: React.FC<IndexCardProps> = ({ ticker, index = 0, initial
   useEffect(() => {
     if (!shouldLoadDetails || loadedTickerRef.current === ticker) return;
 
-    let cancelled = false;
+    const controller = new AbortController();
     const load = async () => {
       if (index > 0) {
-        await new Promise(resolve => setTimeout(resolve, Math.min(index * 350, 3500)));
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, Math.min(index * 350, 3500));
+          controller.signal.addEventListener('abort', () => {
+            clearTimeout(timer);
+            reject(new DOMException('Aborted', 'AbortError'));
+          }, { once: true });
+        });
       }
-      if (cancelled) return;
 
       try {
         loadedTickerRef.current = ticker;
         const needsSnapshot = !hasSnapshotDetail(snapshot);
         const [snapRes, constRes, klinesRes] = await Promise.all([
-          needsSnapshot ? fetchSosoIndexSnapshot(ticker).catch(() => null) : Promise.resolve(null),
-          fetchSosoIndexConstituents(ticker).catch(() => null),
-          fetchSosoIndexKlines(ticker).catch(() => null),
+          needsSnapshot ? fetchSosoIndexSnapshot(ticker, controller.signal).catch(() => null) : Promise.resolve(null),
+          fetchSosoIndexConstituents(ticker, controller.signal).catch(() => null),
+          fetchSosoIndexKlines(ticker, undefined, controller.signal).catch(() => null),
         ]);
 
-        if (!cancelled) {
-          // Snapshot: try data directly or nested
-          const snap = unwrapData(snapRes);
-          if (isRecord(snap)) setSnapshot(snap);
+        if (controller.signal.aborted) return;
 
-          // Constituents
-          const constData = unwrapData(constRes);
-          const constituentRows = recordArray(constData);
-          if (constituentRows.length > 0) setConstituents(constituentRows);
+        // Snapshot: try data directly or nested
+        const snap = unwrapData(snapRes);
+        if (isRecord(snap)) setSnapshot(snap);
 
-          // Klines
-          const klinesData = unwrapData(klinesRes);
-          if (Array.isArray(klinesData) && klinesData.length > 0) {
-            const prices = klinesData
-              .map((row) => isRecord(row) ? firstNumber(row.close, row.price, row.value) : null)
-              .filter((value): value is number => typeof value === 'number');
-            setKlinesPrices(prices);
+        // Constituents
+        const constData = unwrapData(constRes);
+        const constituentRows = recordArray(constData);
+        if (constituentRows.length > 0) setConstituents(constituentRows);
 
-            // Extract high/low/volume from klines
-            const highs = klinesData
-              .map((row) => isRecord(row) ? firstNumber(row.high) : null)
-              .filter((value): value is number => typeof value === 'number');
-            const lows = klinesData
-              .map((row) => isRecord(row) ? firstNumber(row.low) : null)
-              .filter((value): value is number => typeof value === 'number');
-            const volumes = klinesData
-              .map((row) => isRecord(row) ? firstNumber(row.volume, row.vol) ?? 0 : 0);
-            if (highs.length > 0 || lows.length > 0) {
-              setKlinesMeta({
-                high: highs.length > 0 ? Math.max(...highs) : 0,
-                low: lows.length > 0 ? Math.min(...lows.filter(v => v > 0)) : 0,
-                volume: volumes.reduce((a: number, b: number) => a + b, 0),
-              });
-            }
-          }
+        // Klines
+        const klinesData = unwrapData(klinesRes);
+        if (Array.isArray(klinesData) && klinesData.length > 0) {
+          const prices = klinesData
+            .map((row) => isRecord(row) ? firstNumber(row.close, row.price, row.value) : null)
+            .filter((value): value is number => typeof value === 'number');
+          setKlinesPrices(prices);
 
-          if (!snap && constituentRows.length === 0 && !(Array.isArray(klinesData) && klinesData.length > 0) && !snapshot) {
-            setError(true);
+          // Extract high/low/volume from klines
+          const highs = klinesData
+            .map((row) => isRecord(row) ? firstNumber(row.high) : null)
+            .filter((value): value is number => typeof value === 'number');
+          const lows = klinesData
+            .map((row) => isRecord(row) ? firstNumber(row.low) : null)
+            .filter((value): value is number => typeof value === 'number');
+          const volumes = klinesData
+            .map((row) => isRecord(row) ? firstNumber(row.volume, row.vol) ?? 0 : 0);
+          if (highs.length > 0 || lows.length > 0) {
+            setKlinesMeta({
+              high: highs.length > 0 ? Math.max(...highs) : 0,
+              low: (() => {
+                const positive = lows.filter(v => v > 0);
+                return positive.length > 0 ? Math.min(...positive) : 0;
+              })(),
+              volume: volumes.reduce((a: number, b: number) => a + b, 0),
+            });
           }
         }
-      } catch {
-        if (!cancelled) setError(true);
+
+        if (!snap && constituentRows.length === 0 && !(Array.isArray(klinesData) && klinesData.length > 0) && !snapshot) {
+          setError(true);
+        }
+      } catch (err) {
+        if (isAbortError(err)) return;
+        setError(true);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
 
     load();
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [ticker, index, shouldLoadDetails, snapshot]);
 

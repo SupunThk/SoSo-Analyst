@@ -153,6 +153,9 @@ const buildEvidenceFacts = (toolName, args, data, analysis) => {
       });
       asArray(data?.alerts?.triggered).slice(0, 3).forEach((alert, index) => facts.push(`active alert ${index + 1}: ${alert.title}`));
       asArray(data?.opportunities).slice(0, 3).forEach((opportunity, index) => facts.push(`opportunity ${index + 1}: ${opportunity.title} score=${opportunity.score}`));
+      asArray(data?.topMovers?.gainers).forEach((gainer, index) => facts.push(`top gainer ${index + 1} (tracked): ${gainer.symbol} ${gainer.changePct24h}% price=${gainer.price}`));
+      asArray(data?.topMovers?.losers).forEach((loser, index) => facts.push(`top loser ${index + 1} (tracked): ${loser.symbol} ${loser.changePct24h}% price=${loser.price}`));
+      if (data?.topMovers?.scope) facts.push(`movers scope: ${data.topMovers.scope}`);
       break;
     }
     case 'get_token_intelligence': {
@@ -251,9 +254,11 @@ const buildEvidenceFacts = (toolName, args, data, analysis) => {
     }
     case 'get_sector_spotlight': {
       const sectors = asArray(data?.sectors);
+      pushFact(facts, 'sector source scope', data?.sourceScope);
+      pushFact(facts, 'sector fallback reason', data?.fallbackReason);
       pushFact(facts, 'sectors returned', sectors.length);
       sectors.slice(0, 5).forEach((sector, index) => {
-        facts.push(`sector ${index + 1}: ${sector.name || sector.sector || 'unknown'} 24h=${sector.change_pct_24h ?? sector.changePct24h ?? 'N/A'}, marketCap=${sector.market_cap ?? sector.marketCap ?? 'N/A'}`);
+        facts.push(`sector ${index + 1}: ${sector.name || sector.sector || 'unknown'}${sector.ticker ? ` (${sector.ticker})` : ''} kind=${sector.kind || 'sector'} 24h=${sector.change_pct_24h ?? sector.changePct24h ?? 'N/A'}, marketCap=${sector.market_cap ?? sector.marketCap ?? 'N/A'}, volume24h=${sector.volume_24h ?? sector.volume24h ?? 'N/A'}`);
       });
       break;
     }
@@ -274,6 +279,26 @@ const buildEvidenceFacts = (toolName, args, data, analysis) => {
       pushFact(facts, 'total pairs', data?.totalPairs);
       pairs.slice(0, 5).forEach((pair, index) => {
         facts.push(`pair ${index + 1}: ${pair.exchange || 'unknown exchange'} ${pair.pair || 'unknown pair'} volume24h=${pair.volume_24h ?? 'N/A'} spread=${pair.spread ?? 'N/A'}`);
+      });
+      break;
+    }
+    case 'get_sodex_analytics': {
+      const summary = data?.data?.summary || data?.summary || {};
+      pushFact(facts, 'SoDEX total pairs', summary.totalPairs);
+      pushFact(facts, 'SoDEX total volume USD', summary.totalVolumeUsd);
+      pushFact(facts, 'SoDEX perp volume USD', summary.totalPerpVolumeUsd);
+      pushFact(facts, 'SoDEX spot volume USD', summary.totalSpotVolumeUsd);
+      const gainers = asArray(data?.data?.topGainers || data?.topGainers);
+      gainers.slice(0, 5).forEach((g, index) => {
+        facts.push(`SoDEX top gainer ${index + 1}: ${g.symbol} ${g.changePct24h}% price=${g.lastPrice}`);
+      });
+      const losers = asArray(data?.data?.topLosers || data?.topLosers);
+      losers.slice(0, 5).forEach((l, index) => {
+        facts.push(`SoDEX top loser ${index + 1}: ${l.symbol} ${l.changePct24h}% price=${l.lastPrice}`);
+      });
+      const mostTraded = asArray(data?.data?.mostTraded || data?.mostTraded);
+      mostTraded.slice(0, 3).forEach((t, index) => {
+        facts.push(`SoDEX most traded ${index + 1}: ${t.symbol} volume=${t.quoteVolume24h}`);
       });
       break;
     }
@@ -357,7 +382,12 @@ const summarizeToolData = (toolName, args, data) => {
     case 'get_sector_spotlight': {
       const count = data?.count || asArray(data?.sectors).length;
       const topSectors = asArray(data?.sectors).slice(0, 3).map((s) => s.name).join(', ');
-      return `Returned ${count} sector spotlights. Top sectors: ${topSectors}`;
+      const scope = data?.sourceScope ? ` Scope: ${data.sourceScope}` : '';
+      const fallback = data?.fallbackReason ? ` Fallback: ${data.fallbackReason}` : '';
+      if (!count) {
+        return `No sector spotlight rows returned.${fallback}`;
+      }
+      return `Returned ${count} sector rows. Top sectors: ${topSectors || 'N/A'}.${scope}${fallback}`;
     }
     case 'get_fundraising_overview': {
       const count = data?.count || asArray(data?.projects).length;
@@ -460,6 +490,15 @@ const summarizeToolData = (toolName, args, data) => {
       const labels = arrayData.slice(0, 3).map(buildArrayItemLabel).join(' | ');
       return `Returned ${arrayData.length} macro events. Closest items: ${labels}`;
     }
+    case 'get_sodex_analytics': {
+      const analyticsData = data?.data || data || {};
+      const summary = analyticsData.summary || {};
+      const gainers = asArray(analyticsData.topGainers);
+      const losers = asArray(analyticsData.topLosers);
+      const topGainer = gainers[0];
+      const topLoser = losers[0];
+      return `Returned SoDEX analytics: ${summary.totalPairs || 0} active pairs, total volume $${Math.round(summary.totalVolumeUsd || 0).toLocaleString('en-US')}. Top gainer: ${topGainer?.symbol || 'N/A'} (${topGainer?.changePct24h ?? 'N/A'}%). Top loser: ${topLoser?.symbol || 'N/A'} (${topLoser?.changePct24h ?? 'N/A'}%).`;
+    }
     default: {
       if (isPlainObject(data)) {
         const fields = pickScalarFields(data);
@@ -515,8 +554,9 @@ const buildSynthesisContext = (toolAnalyses) => {
       role: 'user',
       parts: [{
         text: [
-          'DETERMINISTIC CROSS-TOOL SYNTHESIS',
-          'Use this computed synthesis as internal evidence. Do not expose raw scores unless the user asks for scores, quant view, ranking, risk score, confidence, or methodology.',
+          'DETERMINISTIC CROSS-TOOL SYNTHESIS (INTERNAL ONLY)',
+          'Use this synthesis as your high-level analytical frame. It contains calculated directional scores, risk assessments, and identified data conflicts.',
+          'IMPORTANT: Do not expose raw scores, weights, or internal tool names from this object. Instead, synthesize this into a professional narrative.',
           JSON.stringify(synthesis)
         ].join('\n')
       }]

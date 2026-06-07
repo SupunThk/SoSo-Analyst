@@ -13,6 +13,7 @@ const SOSO_REQUEST_TIMEOUT_MS = getPositiveInteger(process.env.SOSO_REQUEST_TIME
 const SOSO_RATE_LIMIT_RETRIES = getPositiveInteger(process.env.SOSO_RATE_LIMIT_RETRIES, 2);
 const SOSO_RATE_LIMIT_RETRY_DELAY_MS = getPositiveInteger(process.env.SOSO_RATE_LIMIT_RETRY_DELAY_MS, 800);
 const SOSO_STALE_CACHE_TTL_MS = getPositiveInteger(process.env.SOSO_STALE_CACHE_TTL_MS, 10 * 60 * 1000);
+const STALE_CACHE_MAX_KEYS = getPositiveInteger(process.env.SOSO_STALE_CACHE_MAX_KEYS, 500);
 
 let currencyCatalogCache = {
   expiresAt: 0,
@@ -123,6 +124,10 @@ const getStaleCachedPayload = (cacheKey) => {
 
 const setCachedPayload = (cacheKey, data) => {
   apiCache.set(cacheKey, data);
+  if (staleApiCache.size >= STALE_CACHE_MAX_KEYS && !staleApiCache.has(cacheKey)) {
+    const oldestKey = staleApiCache.keys().next().value;
+    if (oldestKey) staleApiCache.delete(oldestKey);
+  }
   staleApiCache.set(cacheKey, {
     data,
     expiresAt: Date.now() + SOSO_STALE_CACHE_TTL_MS

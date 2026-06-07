@@ -76,6 +76,7 @@ let intelligenceCache = {
 };
 
 const tokenCache = new Map();
+const TOKEN_CACHE_MAX_KEYS = Number(process.env.MARKET_TOKEN_CACHE_MAX_KEYS) || 100;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -742,6 +743,13 @@ const buildMarketIntelligencePayload = async () => {
   const sectors = sectorSpotlight.sectors;
   const indices = indexRotation.indices;
   const assets = hydrateAssetsWithFallbacks(trackedAssets.assets, sectors, sodex);
+
+  // If core data is completely missing due to network errors, throw so the executor can retry
+  // and we don't cache an empty "Chop" regime.
+  if (sectors.length === 0 && assets.every(a => a.price === null)) {
+    throw new Error('Upstream API failure: Could not load market intelligence data.');
+  }
+
   const regime = classifyMarketRegime({ assets, sectors, indices });
   const rotation = {
     sectors,
@@ -751,6 +759,16 @@ const buildMarketIntelligencePayload = async () => {
   };
   const opportunities = buildOpportunityScanner({ assets, sectors, indices, sodex });
   const alerts = buildAlertEngine({ regime, sectors, assets, rotation, sodex });
+
+  // Rank tracked assets by 24h change for top movers data
+  const assetsWithChange = assets.filter(a => a.changePct24h !== null);
+  const sortedByGain = [...assetsWithChange].sort((a, b) => (b.changePct24h || 0) - (a.changePct24h || 0));
+  const topMovers = {
+    gainers: sortedByGain.slice(0, 3).map(a => ({ symbol: a.symbol, name: a.name, changePct24h: a.changePct24h, price: a.price })),
+    losers: sortedByGain.slice(-3).reverse().map(a => ({ symbol: a.symbol, name: a.name, changePct24h: a.changePct24h, price: a.price })),
+    scope: 'Tracked major assets: BTC, ETH, SOL, XRP, BNB'
+  };
+
   const warnings = [
     ...trackedAssets.warnings,
     ...(indexRotation.warnings || []),
@@ -767,6 +785,7 @@ const buildMarketIntelligencePayload = async () => {
     regime,
     tickerAssets: assets,
     rotation,
+    topMovers,
     opportunities,
     alerts,
     sodex,
@@ -774,8 +793,10 @@ const buildMarketIntelligencePayload = async () => {
     evidence: [
       `Regime=${regime.label}, confidence=${regime.confidence}, breadth=${formatPct(regime.breadthPct)}.`,
       ...regime.drivers.slice(0, 3),
-      ...rotation.signals.slice(0, 3).map((signal) => signal.detail)
-    ].slice(0, 8)
+      ...rotation.signals.slice(0, 3).map((signal) => signal.detail),
+      topMovers.gainers.length ? `Top gainer (tracked): ${topMovers.gainers[0].symbol} ${formatPct(topMovers.gainers[0].changePct24h)}` : null,
+      topMovers.losers.length ? `Top loser (tracked): ${topMovers.losers[0].symbol} ${formatPct(topMovers.losers[0].changePct24h)}` : null
+    ].filter(Boolean).slice(0, 10)
   };
 };
 
@@ -853,6 +874,10 @@ const buildTokenIntelligencePayload = async (assetQuery) => {
     }, SOSO_API_BASE)),
     buildMarketIntelligence()
   ]);
+
+  if (snapshotReq.status === 'error' && klinesReq.status === 'error') {
+    throw new Error(`Upstream API failure: Could not load token intelligence for ${symbol}.`);
+  }
 
   const directSnapshot = snapshotReq.status === 'success'
     ? normalizeAssetSnapshot(assetRecord, getPayloadData(snapshotReq.data), { symbol, name: assetRecord.name })
@@ -947,6 +972,10 @@ const buildTokenIntelligence = async (assetQuery, options = {}) => {
   }
 
   const data = await buildTokenIntelligencePayload(assetQuery);
+  if (tokenCache.size >= TOKEN_CACHE_MAX_KEYS && !tokenCache.has(key)) {
+    const oldestKey = tokenCache.keys().next().value;
+    if (oldestKey) tokenCache.delete(oldestKey);
+  }
   tokenCache.set(key, {
     data,
     expiresAt: Date.now() + TOKEN_CACHE_TTL_MS

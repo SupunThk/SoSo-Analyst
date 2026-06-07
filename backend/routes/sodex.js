@@ -6,7 +6,7 @@ const {
   getSodexSymbols,
   getSodexTickers
 } = require('../clients/sodex');
-const { getWalletAddress } = require('../utils/auth');
+const { getWalletAddress, requireSession, hashWallet } = require('../utils/auth');
 
 const router = express.Router();
 
@@ -29,11 +29,15 @@ const resolveMarket = (value, symbol = '') => {
   return String(symbol).includes('-') ? 'perps' : 'spot';
 };
 
-router.get('/profile/:walletAddress', async (req, res, next) => {
+router.get('/profile/:walletAddress', requireSession, async (req, res, next) => {
   try {
     const walletAddress = getWalletAddress(req.params.walletAddress);
     if (!walletAddress) {
       return res.status(400).json({ error: true, message: 'walletAddress must be a valid Ethereum address.' });
+    }
+
+    if (hashWallet(walletAddress) !== req.auth.walletHash) {
+      return res.status(403).json({ error: true, message: 'Wallet session does not match requested wallet.' });
     }
 
     const profile = await buildSodexProfile(walletAddress);

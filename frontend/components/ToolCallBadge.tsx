@@ -32,6 +32,7 @@ const TOOL_COLORS: Record<string, { dot: string; border: string; bg: string; lab
   get_macro_event_history: { dot: 'bg-purple-400', border: 'border-purple-400/30', bg: 'bg-purple-400/5', label: '📅' },
   get_sodex_markets: { dot: 'bg-accent-cyan', border: 'border-accent-cyan/30', bg: 'bg-accent-cyan/5', label: '📘' },
   get_sodex_orderbook: { dot: 'bg-accent-cyan', border: 'border-accent-cyan/30', bg: 'bg-accent-cyan/5', label: '📖' },
+  get_sodex_analytics: { dot: 'bg-accent-cyan', border: 'border-accent-cyan/30', bg: 'bg-accent-cyan/5', label: '📊' },
 };
 
 const DEFAULT_COLORS = { dot: 'bg-accent-green', border: 'border-accent-green/30', bg: 'bg-accent-green/5', label: '⚡' };

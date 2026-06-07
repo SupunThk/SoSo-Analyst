@@ -231,6 +231,14 @@ const allDeclarations = [
       },
       required: ['symbol']
     }
+  },
+  {
+    name: 'get_sodex_analytics',
+    description: 'Get live SoDEX trading analytics — most traded pairs by volume, top gainers, top losers, tightest spreads, and total exchange volume across spot and perps markets. Use when the user asks about SoDEX trading activity, most traded tokens, volume leaders, or exchange-wide statistics.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {}
+    }
   }
 ];
 
@@ -240,10 +248,11 @@ const tools = [{ functionDeclarations: allDeclarations }];
 // Filter tool declarations to only include the specified tools.
 // This is used by gemini.js for hard allowlisting per intent.
 const filterToolDeclarations = (allowedNames) => {
-  if (!allowedNames || !allowedNames.length) return tools;
+  if (!allowedNames || !allowedNames.length) {
+    return [{ functionDeclarations: [] }];
+  }
   const allowed = new Set(allowedNames);
   const filtered = allDeclarations.filter((d) => allowed.has(d.name));
-  if (!filtered.length) return tools;
   return [{ functionDeclarations: filtered }];
 };
 

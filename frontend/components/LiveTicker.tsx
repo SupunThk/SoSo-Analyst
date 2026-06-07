@@ -14,24 +14,38 @@ const CRYPTO_ICONS: Record<string, string> = {
   BNB: '◆',
 };
 
+const TICKER_POLL_INTERVAL_MS = 90_000; // 90s — scrolling marquee doesn't need sub-minute precision
+
 const LiveTicker: React.FC = () => {
   const [assets, setAssets] = useState<TickerAsset[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
+
     const load = async () => {
-      const data = await fetchTickerData();
-      if (data.length) {
-        setAssets(data);
-        setIsLoaded(true);
+      try {
+        const data = await fetchTickerData(controller.signal);
+        if (data.length) {
+          setAssets(data);
+          setIsLoaded(true);
+        }
+      } catch {
+        // If we hit a rate limit but already have assets, keep displaying them
+        if (assets.length > 0) {
+          setIsLoaded(true);
+        }
       }
     };
 
     load();
-    const interval = setInterval(load, 60000);
-    return () => clearInterval(interval);
-  }, []);
+    const interval = setInterval(load, TICKER_POLL_INTERVAL_MS);
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
+  }, [assets.length]);
 
   if (!isLoaded || !assets.length) return null;
 
@@ -49,8 +63,8 @@ const LiveTicker: React.FC = () => {
     return `${sign}${Number(pct).toFixed(2)}%`;
   };
 
-  // Duplicate items for infinite scroll effect
-  const doubled = [...assets, ...assets];
+  // Quadruple items to ensure infinite scroll works even on ultra-wide screens
+  const doubled = [...assets, ...assets, ...assets, ...assets];
 
   return (
     <motion.div

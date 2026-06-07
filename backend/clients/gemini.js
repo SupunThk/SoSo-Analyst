@@ -60,7 +60,7 @@ const buildRequestBody = (contents, options = {}) => ({
     topP: 0.85,
     topK: 40,
     maxOutputTokens: 8192,
-    responseMimeType: 'text/plain',
+    responseMimeType: options.responseMimeType || 'text/plain',
     thinkingConfig: {
       thinkingBudget: 4096
     }
@@ -75,11 +75,12 @@ const postGeminiGenerateContent = async (contents, options = {}) => {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const response = await axios.post(
-        `${GEMINI_API_URL}/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        `${GEMINI_API_URL}/${model}:generateContent`,
         requestBody,
         {
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'x-goog-api-key': process.env.GEMINI_API_KEY
           },
           timeout: GEMINI_REQUEST_TIMEOUT_MS
         }
@@ -104,11 +105,12 @@ const streamGeminiGenerateContent = async (contents, onChunk, options = {}) => {
   const requestBody = buildRequestBody(contents, options);
 
   const response = await axios.post(
-    `${GEMINI_API_URL}/${model}:streamGenerateContent?alt=sse&key=${process.env.GEMINI_API_KEY}`,
+    `${GEMINI_API_URL}/${model}:streamGenerateContent?alt=sse`,
     requestBody,
     {
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'x-goog-api-key': process.env.GEMINI_API_KEY
       },
       timeout: GEMINI_REQUEST_TIMEOUT_MS,
       responseType: 'stream'

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { useAccount } from 'wagmi';
 import { AuthSession, WalletConnection } from '@/lib/types';
 import {
@@ -25,6 +25,15 @@ const isActiveSession = (session: AuthSession | null) =>
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [authSession, setAuthSession] = useState<AuthSession | null>(null);
   const { address: connectedAddress, isConnected } = useAccount();
+  const wasConnectedRef = useRef(isConnected);
+
+  useEffect(() => {
+    if (wasConnectedRef.current && !isConnected && authSession) {
+      setAuthSession(null);
+      clearStoredAuthSession();
+    }
+    wasConnectedRef.current = isConnected;
+  }, [isConnected, authSession]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {

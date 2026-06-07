@@ -20,7 +20,7 @@ export const RegimePanel = ({
         action={(
           <button
             type="button"
-            onClick={() => onRunQuery?.('Give me the current market regime, rotation leaders, active alerts, and opportunities.')}
+            onClick={() => onRunQuery?.('Give me a full market overview — BTC price, top movers, sector trends, and macro calendar.')}
             className="shrink-0 rounded-md border border-accent-green/35 bg-accent-green/[0.05] px-2.5 py-1.5 text-[9px] font-mono font-bold uppercase tracking-widest text-accent-green hover:border-accent-green/60 hover:bg-accent-green/10"
           >
             Ask

@@ -1,18 +1,33 @@
 'use client';
 import '@rainbow-me/rainbowkit/styles.css';
 import { getDefaultConfig, RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit';
-import { WagmiProvider } from 'wagmi';
+import { createConfig, http, WagmiProvider } from 'wagmi';
 import { mainnet, polygon, optimism, arbitrum, base } from 'wagmi/chains';
+import { injected } from 'wagmi/connectors';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 
-export const wagmiConfig = getDefaultConfig({
-  appName: 'SoSo Analyst',
-  // Provide a valid Project ID so RainbowKit enables WalletConnect and Coinbase.
-  // Without this, only MetaMask is available, causing the modal to be skipped.
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '3fcc6bba6f1de962d911bb5b5c3dba68',
-  chains: [mainnet, polygon, optimism, arbitrum, base],
-  ssr: true,
-});
+const chains = [mainnet, polygon, optimism, arbitrum, base] as const;
+const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim();
+
+export const wagmiConfig = walletConnectProjectId
+  ? getDefaultConfig({
+      appName: 'SoSo Analyst',
+      projectId: walletConnectProjectId,
+      chains,
+      ssr: true,
+    })
+  : createConfig({
+      chains,
+      connectors: [injected()],
+      ssr: true,
+      transports: {
+        [mainnet.id]: http(),
+        [polygon.id]: http(),
+        [optimism.id]: http(),
+        [arbitrum.id]: http(),
+        [base.id]: http(),
+      },
+    });
 
 const queryClient = new QueryClient();
 

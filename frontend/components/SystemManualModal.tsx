@@ -122,7 +122,7 @@ const SystemManualModal: React.FC<SystemManualModalProps> = ({ isOpen, onClose }
 
                 <div className="p-3 border border-border bg-[#0a100a] rounded-sm md:col-span-2">
                   <div className="text-accent-green text-sm mb-1 font-bold">🧭 Market Intelligence Layer</div>
-                  <p className="text-xs text-text-secondary leading-relaxed">Deterministic regime detection, SoSo SSI rotation map, token movement explainers, opportunity scanner, and alert triggers built from live SoSoValue and SoDEX data.</p>
+                  <p className="text-xs text-text-secondary leading-relaxed">Market intelligence overview, token movement explainers, sector spotlight analysis, and SoSo SSI index tracking built from live SoSoValue and SoDEX data.</p>
                 </div>
 
                 <div className="p-3 border border-border bg-[#0a100a] rounded-sm md:col-span-2">

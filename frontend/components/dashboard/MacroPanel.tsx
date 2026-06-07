@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { fetchSosoMacroEvents } from '@/lib/api';
+import React, { useEffect, useRef, useState } from 'react';
+import { fetchSosoMacroEvents, isAbortError } from '@/lib/api';
 import { PanelHeader, LoadingPanel } from './ui';
 
 interface MacroEvent {
@@ -23,29 +23,37 @@ const extractMacroEvents = (payload: unknown): MacroEvent[] => {
   }));
 };
 
+const MACRO_POLL_INTERVAL_MS = 300_000; // 300s (5 min) — macro events change at most daily
+
 export const MacroPanel = () => {
   const [events, setEvents] = useState<MacroEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const latestEventsRef = useRef<MacroEvent[]>([]);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
+
     const load = async () => {
       try {
-        const res = await fetchSosoMacroEvents();
-        if (!cancelled) {
-          setEvents(extractMacroEvents(res).slice(0, 4));
-        }
+        const res = await fetchSosoMacroEvents(controller.signal);
+        const items = extractMacroEvents(res).slice(0, 4);
+        latestEventsRef.current = items;
+        setEvents(items);
       } catch (err) {
-        console.error('Failed to fetch macro events', err);
+        if (isAbortError(err)) return;
+        // On any error, keep showing stale events
+        if (latestEventsRef.current.length > 0) {
+          setEvents(latestEventsRef.current);
+        }
       } finally {
-        if (!cancelled) setLoading(false);
+        setLoading(false);
       }
     };
     
     load();
-    const interval = window.setInterval(load, 60000);
+    const interval = window.setInterval(load, MACRO_POLL_INTERVAL_MS);
     return () => {
-      cancelled = true;
+      controller.abort();
       window.clearInterval(interval);
     };
   }, []);

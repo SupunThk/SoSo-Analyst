@@ -7,12 +7,18 @@ const {
   sosoGet,
   sosoPost
 } = require('../../clients/soso');
-const { DEFAULT_WATCHLIST_TICKERS, asArray, sanitizeForGemini } = require('../../normalizers/toolResult');
+const {
+  DEFAULT_WATCHLIST_TICKERS,
+  asArray,
+  normalizeLookupValue,
+  sanitizeForGemini
+} = require('../../normalizers/toolResult');
 const { formatToolErrorMessage } = require('./shared');
 const { mapNewsItems } = require('./helpers');
 const {
   buildMarketIntelligence,
-  buildTokenIntelligence
+  buildTokenIntelligence,
+  normalizeChangeToPercent
 } = require('../../services/marketIntelligence');
 const {
   getEtfType,
@@ -22,6 +28,145 @@ const {
   buildEtfFlowAnalytics,
   getEtfMetricValue
 } = require('./etfHelpers');
+
+const getPayloadData = (payload) => (
+  payload && Object.prototype.hasOwnProperty.call(payload, 'data') ? payload.data : payload
+);
+
+const toNumberOrNull = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(String(value).replace(/,/g, ''));
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const round = (value, digits = 2) => {
+  const parsed = toNumberOrNull(value);
+  if (parsed === null) return null;
+  const factor = 10 ** digits;
+  return Math.round(parsed * factor) / factor;
+};
+
+const normalizeSectorSpotlightRow = (item = {}, kind = 'sector') => {
+  const changePct24h = round(normalizeChangeToPercent(
+    item.change_pct_24h ?? item.changePct24h ?? item.priceChange24h ?? item.roi_24h
+  ));
+  const marketCap = toNumberOrNull(item.market_cap ?? item.marketCap ?? item.marketcap);
+  const volume24h = toNumberOrNull(item.volume_24h ?? item.volume24h ?? item.turnover_24h);
+  const marketcapDomPct = round(normalizeChangeToPercent(
+    item.marketcap_dom ?? item.marketcapDom ?? item.marketcap_dom_pct ?? item.marketcapDomPct
+  ));
+  const name = String(item.name || item.sector || item.ticker || item.symbol || 'Unknown').trim();
+
+  return {
+    name,
+    ticker: item.ticker || item.symbol,
+    kind: item.kind || kind,
+    change_pct_24h: changePct24h,
+    changePct24h,
+    market_cap: marketCap,
+    marketCap,
+    volume_24h: volume24h,
+    volume24h,
+    marketcap_dom_pct: marketcapDomPct,
+    marketcapDomPct,
+    price: toNumberOrNull(item.price),
+    top_currencies: asArray(item.top_currencies || item.topCurrencies || item.constituents)
+      .slice(0, 5)
+      .map((c) => c.name || c.symbol || c.ticker || c)
+      .filter(Boolean)
+  };
+};
+
+const extractSectorSpotlightRows = (payload, limit) => {
+  const data = getPayloadData(payload);
+  const sectorRows = (Array.isArray(data) ? data : asArray(data?.sector || data?.sectors || data?.list))
+    .map((item) => normalizeSectorSpotlightRow(item, 'sector'))
+    .filter((item) => item.name && item.name !== 'Unknown');
+  const spotlightRows = asArray(data?.spotlight)
+    .map((item) => normalizeSectorSpotlightRow(item, 'spotlight'))
+    .filter((item) => item.name && item.name !== 'Unknown');
+  const rows = sectorRows.length ? sectorRows : spotlightRows;
+
+  return {
+    rows: rows.slice(0, limit),
+    spotlight: spotlightRows.slice(0, limit)
+  };
+};
+
+const dedupeSectorRows = (rows) => {
+  const seen = new Set();
+  return rows.filter((row) => {
+    const key = normalizeLookupValue(row.name || row.ticker || row.symbol);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const sortSectorRows = (rows) => [...rows].sort((a, b) => {
+  const left = toNumberOrNull(a.change_pct_24h ?? a.changePct24h);
+  const right = toNumberOrNull(b.change_pct_24h ?? b.changePct24h);
+  if (left === null && right === null) return String(a.name).localeCompare(String(b.name));
+  if (left === null) return 1;
+  if (right === null) return -1;
+  return right - left;
+});
+
+const buildSectorFallbackFromMarketIntelligence = async (limit, fallbackReason) => {
+  const market = await buildMarketIntelligence();
+  const rotation = market?.rotation || {};
+  let sourceScope = 'Market-intelligence rotation fallback from SoSoValue sector data.';
+  let sectors = dedupeSectorRows([
+    ...asArray(rotation.sectors).map((item) => normalizeSectorSpotlightRow(item, item.kind || 'sector')),
+    ...asArray(rotation.spotlight).map((item) => normalizeSectorSpotlightRow(item, item.kind || 'spotlight'))
+  ]);
+
+  if (!sectors.length) {
+    sectors = dedupeSectorRows(asArray(rotation.indices).map((item) =>
+      normalizeSectorSpotlightRow({ ...item, name: item.name || item.ticker }, 'index')
+    ));
+    sourceScope = 'SoSoValue SSI index rotation fallback because sector spotlight rows were unavailable.';
+  }
+
+  if (!sectors.length) {
+    sectors = asArray(market?.tickerAssets)
+      .filter((asset) => asset?.sector || asset?.symbol)
+      .map((asset) => ({
+        name: asset.sector || asset.name || asset.symbol,
+        ticker: asset.symbol,
+        kind: 'asset-proxy',
+        change_pct_24h: asset.changePct24h,
+        changePct24h: asset.changePct24h,
+        price: asset.price,
+        market_cap: asset.marketCap,
+        marketCap: asset.marketCap,
+        volume_24h: asset.volume24h,
+        volume24h: asset.volume24h,
+        top_currencies: [asset.symbol].filter(Boolean)
+      }))
+      .filter((row) => row.change_pct_24h !== null && row.change_pct_24h !== undefined);
+    sourceScope = market?.topMovers?.scope || 'Tracked major assets used as sector proxies.';
+  }
+
+  const ranked = sortSectorRows(dedupeSectorRows(sectors)).slice(0, limit);
+  return {
+    count: ranked.length,
+    sectors: ranked,
+    source: 'market-intelligence-fallback',
+    sourceScope,
+    fallbackReason,
+    regime: market?.regime ? {
+      label: market.regime.label,
+      confidence: market.regime.confidence,
+      breadthPct: market.regime.breadthPct,
+      broadAveragePct: market.regime.broadAveragePct
+    } : undefined,
+    warnings: [
+      fallbackReason,
+      ...asArray(market?.warnings)
+    ].filter(Boolean)
+  };
+};
 
 const customToolExecutors = {
   async get_market_intelligence() {
@@ -285,18 +430,44 @@ const customToolExecutors = {
   },
   async get_sector_spotlight(args = {}) {
     const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 25);
-    const response = await sosoGet('/currencies/sector-spotlight');
-    const sectors = asArray(response.data).slice(0, limit);
-    return {
-      count: sectors.length,
-      sectors: sectors.map((s) => ({
-        name: s.name || s.sector,
-        change_pct_24h: s.change_pct_24h || s.changePct24h,
-        market_cap: s.market_cap || s.marketCap,
-        volume_24h: s.volume_24h || s.volume24h,
-        top_currencies: asArray(s.top_currencies || s.topCurrencies).slice(0, 3).map((c) => c.name || c.symbol || c)
-      }))
-    };
+    const sourceEndpoint = '/currencies/sector-spotlight';
+
+    try {
+      const response = await sosoGet(sourceEndpoint);
+      const { rows, spotlight } = extractSectorSpotlightRows(response, limit);
+
+      if (rows.length) {
+        return {
+          count: rows.length,
+          sourceEndpoint,
+          sourceScope: 'SoSoValue sector spotlight.',
+          sectors: sortSectorRows(rows),
+          spotlight
+        };
+      }
+
+      return buildSectorFallbackFromMarketIntelligence(
+        limit,
+        'Direct SoSoValue sector spotlight returned no sector rows.'
+      );
+    } catch (error) {
+      try {
+        return await buildSectorFallbackFromMarketIntelligence(
+          limit,
+          `Direct SoSoValue sector spotlight failed: ${formatToolErrorMessage(error, 'SoSoValue sector spotlight')}`
+        );
+      } catch (fallbackError) {
+        return {
+          count: 0,
+          sourceEndpoint,
+          sectors: [],
+          fallbackReason: `Direct SoSoValue sector spotlight failed: ${formatToolErrorMessage(error, 'SoSoValue sector spotlight')}`,
+          warnings: [
+            `Market-intelligence fallback failed: ${formatToolErrorMessage(fallbackError, 'market intelligence')}`
+          ]
+        };
+      }
+    }
   },
   async get_fundraising_overview(args = {}) {
     const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 20);

@@ -9,6 +9,7 @@ export const CommandPalette = () => {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const clearChat = useTerminalStore((state) => state.clearChat);
+  const setActiveChatId = useTerminalStore((state) => state.setActiveChatId);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -39,6 +40,8 @@ export const CommandPalette = () => {
               <Command.Item 
                 onSelect={() => {
                   clearChat();
+                  setActiveChatId(null);
+                  router.push('/');
                   setOpen(false);
                 }}
                 className="flex items-center gap-2 p-2 mt-1 rounded cursor-pointer text-white hover:bg-accent-green/10 hover:text-accent-green text-sm font-mono transition-colors"
@@ -48,6 +51,42 @@ export const CommandPalette = () => {
             </Command.Group>
 
             <Command.Group heading="Navigation" className="text-xs text-text-secondary/70 uppercase tracking-wider font-mono p-2 mt-2">
+              <Command.Item 
+                onSelect={() => {
+                  router.push('/market');
+                  setOpen(false);
+                }}
+                className="flex items-center gap-2 p-2 mt-1 rounded cursor-pointer text-white hover:bg-accent-green/10 hover:text-accent-green text-sm font-mono transition-colors"
+              >
+                Market
+              </Command.Item>
+              <Command.Item 
+                onSelect={() => {
+                  router.push('/indexes');
+                  setOpen(false);
+                }}
+                className="flex items-center gap-2 p-2 mt-1 rounded cursor-pointer text-white hover:bg-accent-green/10 hover:text-accent-green text-sm font-mono transition-colors"
+              >
+                Indexes
+              </Command.Item>
+              <Command.Item 
+                onSelect={() => {
+                  router.push('/profile');
+                  setOpen(false);
+                }}
+                className="flex items-center gap-2 p-2 mt-1 rounded cursor-pointer text-white hover:bg-accent-green/10 hover:text-accent-green text-sm font-mono transition-colors"
+              >
+                Dashboard
+              </Command.Item>
+              <Command.Item 
+                onSelect={() => {
+                  router.push('/charts');
+                  setOpen(false);
+                }}
+                className="flex items-center gap-2 p-2 mt-1 rounded cursor-pointer text-white hover:bg-accent-green/10 hover:text-accent-green text-sm font-mono transition-colors"
+              >
+                Charts
+              </Command.Item>
               <Command.Item 
                 onSelect={() => {
                   router.push('/settings');
