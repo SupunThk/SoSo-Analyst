@@ -20,7 +20,9 @@ MULTI-TOOL STRATEGIES:
 - "ETF analysis" -> get_etf_flow_brief + get_asset_snapshot
 - "Macro outlook" -> get_macro_crypto_calendar + get_macro_event_history + get_fed_rate_outlook
 - "Will the Fed cut?" -> get_fed_rate_outlook
-- "Fear & greed / funding / open interest / stablecoin supply" -> get_analysis_chart
+- "Funding / open interest / leverage / perps for [COIN]" -> get_perp_market with asset (live, per venue)
+- "Where is leverage crowded? / perps overview" -> get_perp_market without asset
+- "Fear & greed / funding history / stablecoin supply" -> get_analysis_chart
 - "News about [person/project/topic]" -> search_crypto_news
 - "Total market cap / gas" -> get_crypto_market_overview
 - "Who invested in [project]?" -> get_fundraising_overview with project

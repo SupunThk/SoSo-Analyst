@@ -157,6 +157,13 @@ const ROUTING_RULES = [
     followUp: 'Translate regime data and news sentiment into a clear sentiment reading. Use specific breadth, dispersion, and sector rotation data to support the reading.'
   },
   {
+    intent: 'perps',
+    pattern: /\b(perps?|perpetuals?|funding (?:rates?|apr)|open interest|oi|basis trade|leverage[d]?|crowded (?:longs?|shorts?)|short squeeze|long squeeze|hyperliquid|binance futures|futures (?:market|positioning))\b/i,
+    tools: ['get_perp_market', 'get_analysis_chart'],
+    budget: 'standard',
+    followUp: 'Call get_perp_market with the asset when one is named, otherwise without it for the board. Report open interest and OI-weighted funding APR first, then per-venue funding and depth, and the price gap only if returned. Funding values are percentages. Say which venues the data covers and note stale venue snapshots.'
+  },
+  {
     intent: 'derivatives_onchain',
     pattern: /\b(open interest|funding rates?|long[/ -]?short|hash ?rate|mining difficulty|miner revenue|stablecoin (?:supply|market cap|mcap)|active addresses|new addresses|staking ratio|eth staking|ahr ?999|on[- ]chain (?:data|metrics|activity)|fear (?:and|&) greed)\b/i,
     tools: ['get_analysis_chart'],
@@ -270,6 +277,7 @@ const REPORT_SHAPES = {
   asset_deep_dive: 'Deep-dive report: thesis, price/trend evidence, news drivers, tokenomics/supply, liquidity/trading-pair context, risks, and verdict.',
   tokenomics: 'Tokenomics report: circulating/total/max supply, supply ratio, remaining supply or inflation status, allocation and upcoming unlocks if returned, historical supply if available, and investor readthrough.',
   fed_rates: 'Fed rates report: most likely target range and probability for each upcoming FOMC meeting, how odds are shifting across meetings, money-market rates, and crypto readthrough. Market-implied odds, not a forecast.',
+  perps: 'Perps report: open interest and OI-weighted funding APR with the funding regime, a per-venue table (venue, contract, funding APR, OI, depth), funding extremes or price gap where returned, and what the positioning implies (squeeze risk, crowding). Data is a live snapshot, not history.',
   derivatives_onchain: 'Metric report: latest value and date, change over the returned period, context for what the level means, and crypto readthrough.',
   news_search: 'News report: returned headlines with dates and sources first, then a short readthrough grounded in them.',
   crypto_market_size: 'Market size report: total market cap and 24h change, 24h volume, ETH gas and BTC fees, with the as-of time.',

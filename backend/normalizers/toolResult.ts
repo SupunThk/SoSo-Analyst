@@ -305,6 +305,23 @@ const buildEvidenceFacts = (toolName, args, data, analysis) => {
       asArray(data?.events).slice(0, 8).forEach((day) => facts.push(`${day.date}: ${asArray(day.events).join(', ')}`));
       break;
     }
+    case 'get_perp_market': {
+      const usd = (v) => (v === null || v === undefined ? 'N/A' : `${Math.round(v).toLocaleString('en-US')}`);
+      if (data?.legs) {
+        facts.push(`${data.asset} perps: open interest ${usd(data.openInterestUsd)}, 24h turnover ${usd(data.turnover24hUsd)}, OI-weighted funding APR ${data.oiWeightedFundingAprPct ?? 'N/A'}% (${data.fundingRegime})`);
+        asArray(data.legs).slice(0, 8).forEach((l) => facts.push(`${l.fullSymbol}: funding ${l.fundingRatePct ?? 'N/A'}% per ${l.fundingIntervalHours ?? '?'}h (APR ${l.fundingAprPct ?? 'N/A'}%), OI ${usd(l.openInterestUsd)}, depth +2% ${usd(l.depthPlus2PctUsd)} / -2% ${usd(l.depthMinus2PctUsd)}, quote age ${l.quoteAgeMinutes ?? '?'} min`));
+        if (data.priceGap) facts.push(`cross-venue price gap ${data.priceGap.gapBps} bps (high ${data.priceGap.highest}, low ${data.priceGap.lowest})`);
+      } else if (data?.totals) {
+        facts.push(`all crypto perps: ${data.totals.contracts} contracts, open interest ${usd(data.totals.openInterestUsd)}, OI-weighted funding APR ${data.totals.oiWeightedFundingAprPct ?? 'N/A'}%`);
+        asArray(data.venues).forEach((v) => facts.push(`${v.venue}: OI ${usd(v.openInterestUsd)}, turnover ${usd(v.turnover24hUsd)}, funding APR ${v.oiWeightedFundingAprPct ?? 'N/A'}%`));
+        asArray(data.topAssets).slice(0, 8).forEach((a) => facts.push(`${a.asset}: OI ${usd(a.openInterestUsd)}, funding APR ${a.oiWeightedFundingAprPct ?? 'N/A'}% (${a.fundingRegime})`));
+        asArray(data.highestFunding).slice(0, 3).forEach((l) => facts.push(`high funding: ${l.fullSymbol} APR ${l.fundingAprPct}%`));
+        asArray(data.lowestFunding).slice(0, 3).forEach((l) => facts.push(`low funding: ${l.fullSymbol} APR ${l.fundingAprPct}%`));
+      } else if (data?.error) {
+        facts.push(data.error);
+      }
+      break;
+    }
     case 'get_fed_rate_outlook': {
       asArray(data?.upcomingMeetings).slice(0, 4).forEach((m) => facts.push(`FOMC ${m.meetingDate}: most likely ${m.mostLikelyRange ?? 'N/A'} (${m.mostLikelyProbabilityPct ?? 'N/A'}%)`));
       asArray(data?.moneyMarketRates).forEach((r) => facts.push(`${r.name || r.code}: ${r.latestValue ?? 'N/A'}${r.unit === '%' ? '%' : ''} on ${r.latestDate || 'N/A'}`));
@@ -429,6 +446,11 @@ const summarizeToolData = (toolName, args, data) => {
       return next
         ? `Next FOMC meeting ${next.meetingDate}: most likely target range ${next.mostLikelyRange} at ${next.mostLikelyProbabilityPct}%. Returned ${asArray(data?.upcomingMeetings).length} meetings and ${asArray(data?.moneyMarketRates).length} money-market rates.`
         : 'No FOMC probability data returned.';
+    }
+    case 'get_perp_market': {
+      if (data?.legs) return `${data.asset}: ${data.contracts} perp contracts on ${asArray(data.venues).join(', ')}, OI-weighted funding APR ${data.oiWeightedFundingAprPct ?? 'N/A'}% (${data.fundingRegime}).`;
+      if (data?.totals) return `Perp board: ${data.totals.contracts} crypto contracts across ${asArray(data.venues).length} venues, OI-weighted funding APR ${data.totals.oiWeightedFundingAprPct ?? 'N/A'}%.`;
+      return data?.error || 'No perpetual-futures data returned.';
     }
     case 'get_crypto_market_overview': {
       return `Total crypto market cap ${data?.totalMarketCapUsd ?? 'N/A'} USD (${data?.totalMarketCapChangePct24h ?? 'N/A'}% 24h), 24h volume ${data?.totalVolume24hUsd ?? 'N/A'} USD.`;

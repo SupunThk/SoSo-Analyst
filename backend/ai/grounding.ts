@@ -141,6 +141,7 @@ const buildPartialFailureNote = (toolCalls) => {
     search_crypto_news: 'News Search',
     get_analysis_chart: 'Analysis Chart',
     get_fed_rate_outlook: 'Fed Rate Outlook',
+    get_perp_market: 'Perpetuals (v3)',
     get_crypto_market_overview: 'Crypto Market Overview',
     compare_assets: 'Asset Comparison'
   };

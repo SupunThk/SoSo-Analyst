@@ -2,3 +2,4 @@ export { RateLimitError, UnauthorizedError, isAbortError, isRateLimitError, isUn
 export * from './agent';
 export * from './account';
 export * from './soso';
+export * from './perps';

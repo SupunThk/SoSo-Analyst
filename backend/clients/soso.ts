@@ -8,6 +8,9 @@ import { getPositiveInteger, sleep } from '../utils/common.ts';
 const CURRENCY_CACHE_TTL_MS = 10 * 60 * 1000;
 const SOSO_ROOT_BASE = 'https://openapi.sosovalue.com';
 const SOSO_OPENAPI_BASE = `${SOSO_ROOT_BASE}/openapi/v1`;
+// Market Data API: equities, ETFs and perpetual futures. Same key and success
+// envelope ({ code: 0 }) as v1, so sosoGet's caching and 429 handling apply.
+const SOSO_V3_BASE = `${SOSO_ROOT_BASE}/openapi/v3`;
 
 const SOSO_REQUEST_TIMEOUT_MS = getPositiveInteger(process.env.SOSO_REQUEST_TIMEOUT_MS, 15000);
 const SOSO_RATE_LIMIT_RETRIES = getPositiveInteger(process.env.SOSO_RATE_LIMIT_RETRIES, 2);
@@ -251,6 +254,7 @@ const formatEtfCountryCode = (value) => (String(value || 'US').trim().toUpperCas
 
 export {
   SOSO_OPENAPI_BASE,
+  SOSO_V3_BASE,
   SOSO_ROOT_BASE,
   clearSosoCaches,
   formatEtfCountryCode,

@@ -118,6 +118,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Pages outside the terminal (e.g. Perps Radar) hand questions to the chat.
+  const runQueryRef = useRef(runQuery);
+  useEffect(() => {
+    runQueryRef.current = runQuery;
+  });
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const query = (event as CustomEvent<{ query?: string }>).detail?.query;
+      if (typeof query === 'string' && query.trim()) runQueryRef.current(query);
+    };
+    window.addEventListener('soso:run-query', handler);
+    return () => window.removeEventListener('soso:run-query', handler);
+  }, []);
+
   const onAnalyzePortfolio = () => runQuery('Analyze my portfolio — check my holdings, risk profile, and market fit.');
 
   return (

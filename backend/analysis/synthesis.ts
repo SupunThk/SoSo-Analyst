@@ -44,6 +44,8 @@ const toolWeight = (tool) => {
       return 0.55;
     case 'get_crypto_market_overview':
       return 0.85;
+    case 'get_perp_market':
+      return 0.8;
     case 'get_analysis_chart':
     case 'get_fed_rate_outlook':
       return 0.6;

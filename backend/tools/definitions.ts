@@ -244,6 +244,17 @@ const allDeclarations = [
     }
   },
   {
+    name: 'get_perp_market',
+    description: 'Get live crypto perpetual-futures positioning across BINANCE, HYPERLIQUID and SODEX: open interest (USD), current funding rate and annualised funding APR per venue, 24h turnover, ±2% order-book depth, and the cross-venue price gap. With asset: every contract for that coin and an OI-weighted funding regime (crowded longs/shorts). Without asset: a market-wide board with top assets by open interest, venue totals, and the highest/lowest funding contracts. Use for funding rates, open interest, leverage, crowded positioning, basis, or comparing perp venues.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        asset: { type: 'STRING', description: 'Coin symbol such as BTC, ETH, SOL, HYPE. Omit for the market-wide board.' },
+        limit: { type: 'NUMBER', description: 'Board only: number of top assets by open interest, default 15, max 50.' }
+      }
+    }
+  },
+  {
     name: 'get_crypto_market_overview',
     description: 'Get the headline crypto market numbers right now: total crypto market cap and its 24h change, total 24h volume, ETH gas (gwei) and BTC fees (sat/vB). Use for "how big is the crypto market", total market cap, or gas/fee questions.',
     parameters: {

@@ -199,7 +199,7 @@
     "expectedTools": ["get_sodex_analytics"],
     "intent": "sodex_analytics",
     "matchMode": "any",
-    "expectedBudget": "simple"
+    "expectedBudget": "standard"
   },
   {
     "id": "btc-dominance",
@@ -238,6 +238,27 @@
     "expectedTools": ["get_market_intelligence", "get_hot_news_digest"],
     "intent": "watchlist_today",
     "matchMode": "any",
+    "expectedBudget": "standard"
+  },
+  {
+    "id": "perp-funding-across-venues",
+    "query": "What is the BTC funding rate across exchanges right now?",
+    "expectedTools": ["get_perp_market"],
+    "intent": "perps",
+    "expectedBudget": "standard"
+  },
+  {
+    "id": "perp-crowded-leverage",
+    "query": "Where is leverage most crowded in perps right now?",
+    "expectedTools": ["get_perp_market"],
+    "intent": "perps",
+    "expectedBudget": "standard"
+  },
+  {
+    "id": "perp-hyperliquid-oi",
+    "query": "Show ETH open interest on Hyperliquid",
+    "expectedTools": ["get_perp_market"],
+    "intent": "perps",
     "expectedBudget": "standard"
   }
 ]

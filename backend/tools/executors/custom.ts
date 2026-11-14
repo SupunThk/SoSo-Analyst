@@ -29,6 +29,7 @@ import {
   summarizeFomcMeeting
 } from './sosoValue.ts';
 import type { ToolArgs } from '../../types/tools.ts';
+import { getPerpAsset, getPerpBoard } from '../../services/perps.ts';
 
 const getPayloadData = (payload) => (
   payload && Object.prototype.hasOwnProperty.call(payload, 'data') ? payload.data : payload
@@ -721,6 +722,9 @@ const customToolExecutors = {
       btcFeeSatPerVb: round(d.btc_gas_sat_vb, 2),
       asOf: d.as_of ? new Date(Number(d.as_of)).toISOString() : null
     };
+  },
+  async get_perp_market(args: ToolArgs = {}) {
+    return args.asset ? getPerpAsset(String(args.asset)) : getPerpBoard({ limit: Number(args.limit) || 15 });
   },
   async get_fed_rate_outlook() {
     const [fomcRes, ratesRes] = await Promise.all([
