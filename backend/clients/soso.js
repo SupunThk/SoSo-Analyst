@@ -22,10 +22,10 @@ let currencyCatalogCache = {
 
 const assertSosoSuccess = (payload) => {
   if (payload && Object.prototype.hasOwnProperty.call(payload, 'code') && Number(payload.code) !== 0) {
-    const error = new Error(payload.msg || payload.message || `SoSoValue API returned code ${payload.code}`);
-    error.sosoCode = payload.code;
-    error.traceId = payload.traceId;
-    throw error;
+    throw Object.assign(new Error(payload.msg || payload.message || `SoSoValue API returned code ${payload.code}`), {
+      sosoCode: payload.code,
+      traceId: payload.traceId
+    });
   }
 
   return payload;

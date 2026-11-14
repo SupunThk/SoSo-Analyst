@@ -102,9 +102,7 @@ const runAgentLoop = async (contents, options = {}) => {
 
   const callGemini = async (currentContents, extraOptions = {}) => {
     if (shouldAbort()) {
-      const error = new Error('Client disconnected');
-      error.status = 499;
-      throw error;
+      throw Object.assign(new Error('Client disconnected'), { status: 499 });
     }
     const callOptions = {
       toolCallCount: toolCallsMade.length,
@@ -125,9 +123,7 @@ const runAgentLoop = async (contents, options = {}) => {
 
   for (let iteration = 1; iteration <= MAX_GEMINI_ITERATIONS && toolCallsToExecute.length > 0; iteration++) {
     if (shouldAbort()) {
-      const error = new Error('Client disconnected');
-      error.status = 499;
-      throw error;
+      throw Object.assign(new Error('Client disconnected'), { status: 499 });
     }
 
     // Enforce tool-call budget: cap total invocations

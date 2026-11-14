@@ -85,6 +85,10 @@ Today's date: {DATE}.`;
 
 const { getVersionAppendix, resolvePromptVersion } = require('./versions');
 
+/**
+ * @param {{ date?: Date, version?: string }} [options]
+ * @returns {string}
+ */
 const buildSystemPrompt = ({ date = new Date(), version } = {}) => {
   const resolvedVersion = resolvePromptVersion(version);
   const appendix = getVersionAppendix(resolvedVersion);

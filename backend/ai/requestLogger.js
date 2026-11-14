@@ -17,7 +17,8 @@ const logAgentRequest = ({
   budgetUsed = 0,
   budgetMax = 0,
   dedupeHits = 0,
-  zeroToolSuccess = false
+  zeroToolSuccess = false,
+  allToolsFailed = false
 } = {}) => {
   const entry = {
     ts: new Date().toISOString(),
@@ -34,7 +35,8 @@ const logAgentRequest = ({
     budgetUsed,
     budgetMax,
     dedupeHits,
-    zeroToolSuccess
+    zeroToolSuccess,
+    allToolsFailed
   };
 
   try {

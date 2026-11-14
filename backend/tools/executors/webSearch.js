@@ -4,6 +4,7 @@ const { searchWithGoogle } = require('../../clients/gemini');
 // Keeping search out of the main request avoids mixing built-in tools with
 // function calling (rejected by Gemini 2.5, preview-only on Gemini 3) and gives
 // us explicit source links from groundingMetadata.
+/** @param {{ query?: string }} [args] */
 const searchWeb = async ({ query } = {}) => {
   const text = String(query || '').trim().slice(0, 300);
   if (!text) {

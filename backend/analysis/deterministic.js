@@ -31,36 +31,43 @@ const {
   analyzePortfolio
 } = require('./analyzers/holdings');
 
-const analyzeToolResult = (toolName, data, args = {}) => {
+/**
+ * Scores a tool's normalised data. The tool's args are accepted for callers'
+ * convenience; no analyzer uses them yet.
+ * @param {string} toolName
+ * @param {any} data
+ * @param {Record<string, any>} [_args]
+ */
+const analyzeToolResult = (toolName, data, _args = {}) => {
   let analysis;
   switch (toolName) {
     case 'get_asset_snapshot':
-      analysis = analyzeSnapshot(toolName, data, args);
+      analysis = analyzeSnapshot(toolName, data);
       break;
     case 'compare_assets':
       analysis = analyzeCompareAssets(toolName, data);
       break;
     case 'get_asset_price_history':
-      analysis = analyzePriceHistory(toolName, data, args);
+      analysis = analyzePriceHistory(toolName, data);
       break;
     case 'get_etf_flow_brief':
-      analysis = analyzeEtfFlows(toolName, data, args);
+      analysis = analyzeEtfFlows(toolName, data);
       break;
     case 'get_asset_news_brief':
     case 'get_hot_news_digest':
-      analysis = analyzeNews(toolName, data, args);
+      analysis = analyzeNews(toolName, data);
       break;
     case 'get_token_economics':
-      analysis = analyzeTokenomics(toolName, data, args);
+      analysis = analyzeTokenomics(toolName, data);
       break;
     case 'get_wallet_holdings':
-      analysis = analyzePortfolio(toolName, data, args);
+      analysis = analyzePortfolio(toolName, data);
       break;
     case 'get_trading_pairs':
-      analysis = analyzeTradingPairs(toolName, data, args);
+      analysis = analyzeTradingPairs(toolName, data);
       break;
     case 'get_macro_event_history':
-      analysis = analyzeMacroEventHistory(toolName, data, args);
+      analysis = analyzeMacroEventHistory(toolName, data);
       break;
     case 'get_sector_spotlight':
       analysis = analyzeSectorSpotlight(toolName, data);
@@ -84,7 +91,7 @@ const analyzeToolResult = (toolName, data, args = {}) => {
       analysis = analyzeBtcPurchaseHistoryBrief(toolName, data);
       break;
     default:
-      analysis = analyzeDefault(toolName, data, args);
+      analysis = analyzeDefault(toolName, data);
   }
 
   return {

@@ -1,9 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const helmet = require('helmet');
+const helmet = require('helmet').default;
 const mongoose = require('mongoose');
-const rateLimit = require('express-rate-limit');
+const rateLimit = require('express-rate-limit').default;
 const { getAllowedOrigins } = require('./utils/origins');
 const crypto = require('crypto');
 const dns = require('dns');
@@ -50,9 +50,7 @@ app.use(cors({
       return;
     }
 
-    const corsError = new Error('Not allowed by CORS');
-    corsError.status = 403;
-    callback(corsError);
+    callback(Object.assign(new Error('Not allowed by CORS'), { status: 403 }));
   }
 }));
 app.use(express.json({ limit: '1mb' }));

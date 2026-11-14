@@ -158,9 +158,7 @@ const preloadPortfolioHoldings = async (payload, walletContext, hooks = {}) => {
   }
 
   if (!walletContext.verifiedWalletAddress) {
-    const error = new Error('Connect and verify an EVM wallet before running portfolio analysis.');
-    error.status = 400;
-    throw error;
+    throw Object.assign(new Error('Connect and verify an EVM wallet before running portfolio analysis.'), { status: 400 });
   }
 
   const name = 'get_wallet_holdings';

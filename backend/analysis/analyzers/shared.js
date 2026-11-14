@@ -185,6 +185,24 @@ const getDataFreshness = (data) => {
   };
 };
 
+/**
+ * @typedef {object} AnalysisInput
+ * @property {string} toolName
+ * @property {string} [label]
+ * @property {number} [score]
+ * @property {number} [signalScore]
+ * @property {number} [riskScore]
+ * @property {string} [confidence]
+ * @property {string[]} [signals]
+ * @property {string[]} [risks]
+ * @property {Record<string, any>} [metrics]
+ * @property {string[]} [caveats]
+ * @property {Array<{ factor: string, impact: number, reason: string, metrics?: Record<string, any> }>} [scoreBreakdown]
+ * @property {{ latestTimestamp: string | null, ageMinutes: number | null, status: string }} [dataFreshness]
+ * @property {string} [scoreMeaning]
+ */
+
+/** @param {AnalysisInput} input */
 const buildAnalysis = ({
   toolName,
   label = 'neutral',

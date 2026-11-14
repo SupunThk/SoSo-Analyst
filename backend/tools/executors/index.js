@@ -25,6 +25,7 @@ const allCustomExecutors = {
 };
 
 const resolveToolArgs = (name, args = {}, context = {}) => {
+  /** @type {Record<string, any>} */
   const resolvedArgs = args ? { ...args } : {};
 
   if (name === 'get_wallet_holdings') {

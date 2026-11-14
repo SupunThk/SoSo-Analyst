@@ -17,15 +17,15 @@ const SODEX_REQUEST_TIMEOUT_MS = getPositiveInteger(process.env.SODEX_REQUEST_TI
 
 const assertSodexSuccess = (payload) => {
   if (payload && Object.prototype.hasOwnProperty.call(payload, 'code') && Number(payload.code) !== 0) {
-    const error = new Error(payload.error || payload.message || `SoDEX API returned code ${payload.code}`);
-    error.sodexCode = payload.code;
-    throw error;
+    throw Object.assign(new Error(payload.error || payload.message || `SoDEX API returned code ${payload.code}`), {
+      sodexCode: payload.code
+    });
   }
 
   if (payload && payload.success === false) {
-    const error = new Error(payload.message || 'SoDEX API returned an error');
-    error.sodexCode = payload.code;
-    throw error;
+    throw Object.assign(new Error(payload.message || 'SoDEX API returned an error'), {
+      sodexCode: payload.code
+    });
   }
   return payload;
 };

@@ -414,6 +414,10 @@ const getToolAllowlist = async (userMessage) => {
   };
 };
 
+/**
+ * @param {string} userMessage
+ * @param {{ preloadedTools?: string[], routing?: any }} [options]
+ */
 const buildToolRoutingContext = (userMessage, { preloadedTools = [], routing } = {}) => {
   if (!routing) {
     throw new Error('Routing must be provided to buildToolRoutingContext');

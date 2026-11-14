@@ -10,6 +10,17 @@ const ETHERSCAN_RETRY_DELAY_MS = getPositiveInteger(process.env.ETHERSCAN_RETRY_
 const ETHERSCAN_API_BASE = 'https://api.etherscan.io/v2/api';
 const COINGECKO_SIMPLE_PRICE_BASE = 'https://api.coingecko.com/api/v3/simple/price';
 
+/**
+ * @typedef {object} EtherscanChain
+ * @property {string} chainId
+ * @property {string} name
+ * @property {string} nativeSymbol
+ * @property {string} nativeName
+ * @property {string[]} [priceSymbols] Symbols to price the native token by; defaults to nativeSymbol.
+ * @property {string[]} priceIds CoinGecko ids for the fallback price.
+ */
+
+/** @type {EtherscanChain[]} */
 const DEFAULT_ETHERSCAN_CHAINS = [
   { chainId: '1', name: 'Ethereum Mainnet', nativeSymbol: 'ETH', nativeName: 'Ethereum', priceSymbols: ['ETH'], priceIds: ['ethereum'] },
   { chainId: '8453', name: 'Base Mainnet', nativeSymbol: 'ETH', nativeName: 'Ethereum', priceSymbols: ['ETH'], priceIds: ['ethereum'] },
@@ -25,6 +36,7 @@ const lastEtherscanRequestAt = new Map();
 const etherscanRequestQueue = new Map();
 let nativePriceCache = { expiresAt: 0, prices: {} };
 
+/** @returns {EtherscanChain[]} */
 const getConfiguredEtherscanChains = () => {
   const configuredIds = String(process.env.ETHERSCAN_CHAIN_IDS || '')
     .split(',')

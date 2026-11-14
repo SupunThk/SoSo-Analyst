@@ -161,6 +161,7 @@ const classifyMarketRegime = ({ assets = [], sectors = [], indices = [] }) => {
   };
 };
 
+/** @param {{ assets?: any[], sectors?: any[], indices?: any[], sodex?: Record<string, any> }} input */
 const buildOpportunityScanner = ({ assets = [], sectors = [], indices = [], sodex = {} }) => {
   const opportunities = [];
   const btc = assets.find((asset) => asset.symbol === 'BTC');
@@ -279,6 +280,7 @@ const buildOpportunityScanner = ({ assets = [], sectors = [], indices = [], sode
     .map((item) => ({ ...item, score: Math.round(item.score) }));
 };
 
+/** @param {{ regime: any, sectors?: any[], assets?: any[], rotation?: Record<string, any>, sodex?: Record<string, any> }} input */
 const buildAlertEngine = ({ regime, sectors = [], assets = [], rotation = {}, sodex = {} }) => {
   const btc = assets.find((asset) => asset.symbol === 'BTC');
   const btcChange = getRowChange(btc);
