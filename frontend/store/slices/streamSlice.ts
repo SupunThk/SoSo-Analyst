@@ -2,6 +2,9 @@ import type { TerminalGet, TerminalSet } from './types';
 import { Message, ToolCall, AuthSession, ConversationHistoryMessage, PersistedChatMessage } from '@/lib/types';
 import { sendMessageStream, createChat, fetchChatSession, isRateLimitError } from '@/lib/api';
 
+export const SIGN_IN_REQUIRED_MESSAGE =
+  '**🔒 SIGN IN REQUIRED** — Connect your wallet and sign the login message to run analysis. Signing proves wallet ownership only; it never authorizes a transaction.';
+
 export interface StreamSlice {
   messages: Message[];
   isThinking: boolean;
@@ -68,6 +71,22 @@ export const createStreamSlice = (set: TerminalSet, get: TerminalGet): StreamSli
   _handleSubmit: async (text, walletAddress, authSession, activeChatId, onChatCreated, onRefreshChats, persistedMessageCount, setPersistedMessageCount, welcomeMessage) => {
     const state = get();
     if (!text.trim() || state.isThinking) return;
+
+    // Chat runs paid model calls, so the backend requires a signed-in wallet session.
+    if (!walletAddress || !authSession) {
+      state.setMessages([...state.messages, {
+        id: `usr-${Date.now()}`,
+        role: 'user',
+        content: text,
+        timestamp: new Date(),
+      }, {
+        id: `auth-${Date.now()}`,
+        role: 'assistant',
+        content: SIGN_IN_REQUIRED_MESSAGE,
+        timestamp: new Date(),
+      }]);
+      return;
+    }
 
     const userMsg: Message = {
       id: `usr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -170,6 +189,7 @@ export const createStreamSlice = (set: TerminalSet, get: TerminalGet): StreamSli
       onError: (errorMessage) => {
         streamCompleted = false;
 
+        const needsSignIn = /wallet session is required/i.test(errorMessage);
         const isRateLimit = /rate limit|too many requests|\b429\b/i.test(errorMessage);
         const displayMessage = isRateLimit
           ? 'The system is processing a high volume of requests. Please wait a moment and try again.'
@@ -178,7 +198,9 @@ export const createStreamSlice = (set: TerminalSet, get: TerminalGet): StreamSli
         const errorMsg: Message = {
           id: `err-${Date.now()}`,
           role: 'assistant',
-          content: isRateLimit
+          content: needsSignIn
+            ? SIGN_IN_REQUIRED_MESSAGE
+            : isRateLimit
             ? `**⏳ PLEASE WAIT** — ${displayMessage}`
             : `**⚠ ERROR:** ${displayMessage}\n\nConnection to analysis engine failed. Retry your query or type \`/clear\` to reset.`,
           timestamp: new Date(),

@@ -31,7 +31,7 @@ const createNonce = () => crypto.randomBytes(16).toString('hex');
 
 const createSessionToken = () => crypto.randomBytes(32).toString('base64url');
 
-const buildLoginMessage = (walletAddress, nonce, issuedAt = new Date().toISOString(), reqDomain = 'soso-analyst.com', reqUri = 'https://soso-analyst.com') => {
+const buildLoginMessage = (walletAddress, nonce, issuedAt = new Date().toISOString(), reqDomain = 'soso-analyst.com', reqUri = 'https://soso-analyst.com', expirationTime = null) => {
   const statement = 'Sign in to SoSo Analyst. This signature proves wallet ownership and does not authorize a blockchain transaction.';
   const chainId = 1;
   
@@ -45,7 +45,8 @@ const buildLoginMessage = (walletAddress, nonce, issuedAt = new Date().toISOStri
     `Version: 1`,
     `Chain ID: ${chainId}`,
     `Nonce: ${nonce}`,
-    `Issued At: ${issuedAt}`
+    `Issued At: ${issuedAt}`,
+    ...(expirationTime ? [`Expiration Time: ${expirationTime}`] : [])
   ].join('\n');
 };
 

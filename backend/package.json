@@ -10,7 +10,7 @@
     "test:evals": "node tests/evals.test.js"
   },
   "engines": {
-    "node": ">=20.9.0 <25",
+    "node": ">=22 <25",
     "npm": ">=10"
   },
   "keywords": [],

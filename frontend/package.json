@@ -10,22 +10,22 @@
     "test": "vitest run"
   },
   "engines": {
-    "node": ">=20.9.0 <25",
+    "node": ">=22 <25",
     "npm": ">=10"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "10.2.9",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
-    "@mui/material": "^9.0.1",
+    "@mui/material": "^9.5.0",
     "@rainbow-me/rainbowkit": "^2.0.5",
     "@tanstack/react-query": "^5.32.0",
     "cmdk": "^1.0.0",
     "framer-motion": "^11.11.0",
     "lightweight-charts": "^5.2.0",
-    "next": "16.2.6",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
+    "next": "^16.4.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "react-hot-toast": "^2.4.1",
     "react-markdown": "^10.1.0",
     "recharts": "^2.12.7",
@@ -46,7 +46,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.43.0",
-    "@tailwindcss/postcss": "^4",
+    "@tailwindcss/postcss": "^4.3.5",
     "@testing-library/dom": "^10.0.0",
     "@testing-library/jest-dom": "^6.4.0",
     "@testing-library/react": "^16.0.0",
@@ -54,9 +54,9 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.6",
+    "eslint-config-next": "^16.4.6",
     "jsdom": "^24.0.0",
-    "tailwindcss": "^4",
+    "tailwindcss": "^4.3.5",
     "typescript": "^5",
     "vitest": "4.1.7"
   }

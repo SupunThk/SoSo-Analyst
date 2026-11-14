@@ -183,35 +183,27 @@ const testAgentStreamInjectsVerifiedWallet = async () => {
   }
 };
 
-const testAgentStreamRequiresVerifiedWalletForPortfolio = async () => {
-  const originalConsoleError = console.error;
+const testAgentChatRequiresLogin = async () => {
   axios.post = async () => {
-    throw new Error('Gemini should not be called without a verified wallet');
-  };
-  axios.get = async () => {
-    throw new Error('Wallet holdings should not be fetched without a verified wallet');
+    throw new Error('Gemini should not be called without a signed-in wallet');
   };
   mongoose.connection.readyState = 0;
-  console.error = () => {};
 
   resetAgentModules();
   const server = await startServer('/api/agent', require('../routes/agent'));
   try {
-    const response = await fetch(urlFor(server, '/api/agent/chat/stream'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: [{ role: 'user', content: 'Analyze my portfolio' }],
-        conversationHistory: []
-      })
-    });
-    const events = parseSse(await response.text());
-    const error = events.find((item) => item.event === 'error');
-
-    assert.equal(response.status, 200);
-    assert.equal(error.data.message, 'Connect and verify an EVM wallet before running portfolio analysis.');
+    for (const path of ['/api/agent/chat', '/api/agent/chat/stream']) {
+      const response = await fetch(urlFor(server, path), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: 'Analyze my portfolio' }],
+          conversationHistory: []
+        })
+      });
+      assert.equal(response.status, 401, `${path} should require a session`);
+    }
   } finally {
-    console.error = originalConsoleError;
     await closeServer(server);
   }
 };
@@ -248,7 +240,7 @@ const testChatRoutesWithMockedDatabase = async () => {
   try {
     const nonceResponse = await fetch(urlFor(server, '/api/chats/auth/nonce'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Origin: 'http://localhost:3000' },
       body: JSON.stringify({ walletAddress: wallet.toLowerCase() })
     });
     const nonce = await nonceResponse.json();
@@ -278,6 +270,26 @@ const testChatRoutesWithMockedDatabase = async () => {
   }
 };
 
+const testChatNonceRejectsUnknownOrigin = async () => {
+  const wallet = ethers.Wallet.createRandom().address;
+  mongoose.connection.readyState = 1;
+  User.findOneAndUpdate = async () => {
+    throw new Error('No nonce should be stored for a foreign origin');
+  };
+
+  const server = await startServer('/api/chats', require('../routes/chats'));
+  try {
+    const response = await fetch(urlFor(server, '/api/chats/auth/nonce'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: 'https://phishing.example' },
+      body: JSON.stringify({ walletAddress: wallet, uri: 'https://phishing.example' })
+    });
+    assert.equal(response.status, 400);
+  } finally {
+    await closeServer(server);
+  }
+};
+
 const testChatNonceIssuesFreshSignedMessage = async () => {
   // Each nonce request issues a new nonce and stores the exact message the wallet must sign,
   // so a stale (even unexpired) nonce is never replayed.
@@ -297,7 +309,7 @@ const testChatNonceIssuesFreshSignedMessage = async () => {
   try {
     const response = await fetch(urlFor(server, '/api/chats/auth/nonce'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: 'https://app.example.com' },
+      headers: { 'Content-Type': 'application/json', Origin: 'http://localhost:3000' },
       body: JSON.stringify({ walletAddress: wallet.toLowerCase() })
     });
     const body = await response.json();
@@ -308,7 +320,8 @@ const testChatNonceIssuesFreshSignedMessage = async () => {
     assert.ok(stored.update.$set.loginNonce);
     assert.equal(stored.update.$set.loginMessage, body.message);
     assert.ok(body.message.includes(wallet));
-    assert.ok(body.message.includes('app.example.com'));
+    assert.ok(body.message.startsWith('localhost:3000 wants you to sign in'));
+    assert.match(body.message, /Expiration Time: /);
     assert.equal(body.expiresAt, stored.update.$set.loginNonceExpiresAt.toISOString());
   } finally {
     await closeServer(server);
@@ -445,9 +458,10 @@ const testSodexProfileRouteBuildsRealDashboard = async () => {
 (async () => {
   try {
     await testAgentStreamInjectsVerifiedWallet();
-    await testAgentStreamRequiresVerifiedWalletForPortfolio();
+    await testAgentChatRequiresLogin();
     await testChatRoutesWithMockedDatabase();
     await testChatNonceIssuesFreshSignedMessage();
+    await testChatNonceRejectsUnknownOrigin();
     await testSodexProfileRouteBuildsRealDashboard();
     await testSosoUpstreamErrorHandling();
     console.log('route integration tests passed');

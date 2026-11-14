@@ -4,6 +4,7 @@ const { ethers } = require('ethers');
 const { z } = require('zod');
 const Chat = require('../models/Chat');
 const User = require('../models/User');
+const { isAllowedOrigin } = require('../utils/origins');
 const {
   NONCE_TTL_MS,
   SESSION_TTL_MS,
@@ -24,9 +25,22 @@ const walletAddressSchema = z.string().refine((value) => Boolean(getWalletAddres
 
 const nonceSchema = z.object({
   walletAddress: walletAddressSchema,
-  domain: z.string().optional(),
-  uri: z.string().optional()
+  uri: z.string().url().optional()
 });
+
+const resolveLoginOrigin = (req, requestedUri) => {
+  const candidates = [req.get('origin'), requestedUri];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    try {
+      const url = new URL(candidate);
+      if (isAllowedOrigin(url.origin)) return url;
+    } catch {
+      // not a URL; try the next candidate
+    }
+  }
+  return null;
+};
 
 const verifySchema = z.object({
   walletAddress: walletAddressSchema,
@@ -88,19 +102,14 @@ router.post('/auth/nonce', async (req, res) => {
     const expiresAt = new Date(Date.now() + NONCE_TTL_MS);
     const issuedAt = new Date().toISOString();
     
-    const reqOrigin = req.get('origin') || process.env.CLIENT_URL || 'https://soso-analyst.com';
-    let fallbackDomain = 'soso-analyst.com';
-    let fallbackUri = 'https://soso-analyst.com';
-    try {
-      const url = new URL(reqOrigin);
-      fallbackDomain = url.host;
-      fallbackUri = url.origin;
-    } catch(e) {}
+    // The signed message names the site the user is signing in to. Only allow
+    // origins we host, otherwise a phishing page could mint a valid login for itself.
+    const origin = resolveLoginOrigin(req, data.uri);
+    if (!origin) {
+      return res.status(400).json({ error: 'Sign-in is not allowed from this site.' });
+    }
 
-    const domain = data.domain || fallbackDomain;
-    const uri = data.uri || fallbackUri;
-    
-    const loginMessage = buildLoginMessage(walletAddress, nonce, issuedAt, domain, uri);
+    const loginMessage = buildLoginMessage(walletAddress, nonce, issuedAt, origin.host, origin.origin, expiresAt.toISOString());
 
     await User.findOneAndUpdate(
       { walletAddress: walletHash },

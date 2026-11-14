@@ -7,7 +7,7 @@ SoSo Analyst is a professional AI-powered crypto research terminal. It allows us
 - **AI agent loop**: Uses Google Gemini to decide which data to fetch based on user queries.
 - **Real-time data**: Proxies SoSoValue API endpoints for market data, ETF flows, public company holdings, macro events, news, indices, and sector intelligence.
 - **Trading terminal**: Includes charting, order book depth, recent trades, and technical indicators powered by `lightweight-charts`.
-- **Wallet sessions**: Wallet signing verifies ownership for saved chat history without authorizing blockchain transactions.
+- **Wallet sessions**: Chat requires signing in with a wallet (an EIP-4361 message). Signing proves ownership only and never authorizes a blockchain transaction.
 - **Secure architecture**: API keys stay server-side. Backend routes include request validation, rate limits, CORS restrictions, and health checks.
 
 ## Tech Stack
@@ -21,7 +21,7 @@ SoSo Analyst is a professional AI-powered crypto research terminal. It allows us
 
 ### Prerequisites
 
-- Node.js `20.9+`
+- Node.js `22+`
 - npm `10+`
 - SoSoValue API key
 - Google Gemini API key
@@ -91,7 +91,7 @@ Default local URLs:
 - Backend health: `http://localhost:3001/health`
 - Backend readiness: `http://localhost:3001/ready`
 
-Wallet history requires signing a backend nonce in the browser wallet. Market analysis still works without a wallet, but saved sessions require `MONGO_URI` and a verified wallet session.
+Chat requires signing a backend nonce in the browser wallet, so `MONGO_URI` must be set. The login message names the site it was issued for, and the backend only issues it for origins listed in `CORS_ORIGIN`. Market data pages work without a wallet.
 
 ## Testing
 

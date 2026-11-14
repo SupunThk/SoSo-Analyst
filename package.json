@@ -10,13 +10,10 @@
     "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend"
   },
   "engines": {
-    "node": ">=20.9.0 <25",
+    "node": ">=22 <25",
     "npm": ">=10"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
-  },
-  "dependencies": {
-    "mongodb": "^7.2.0"
   }
 }

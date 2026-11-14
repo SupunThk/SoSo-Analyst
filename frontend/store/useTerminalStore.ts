@@ -9,7 +9,7 @@ export const WELCOME_MESSAGE: Message = {
   id: 'welcome',
   role: 'assistant',
   content:
-    "**SYSTEM INITIALIZED** — SoSo Analyst v3.0 online.\n\nConnected to real-time crypto markets, ETF flows, macro events, treasury data, tokenomics, SoDEX market data, SoSo SSI indices, and deterministic market intelligence.\n\n---\n\n**22 data tools active** — including token intelligence, sector spotlight, macro calendar, ETF flow tracking, crypto equities, wallet analysis, and SoDEX order books.\n\n> ⚠️ **RESTRICTED SYSTEM**: This terminal is strictly calibrated for crypto market analysis. General knowledge queries will be rejected. See [SYSTEM MANUAL] for capabilities.\n\nType a query or select a command below to begin analysis.\n\nAvailable commands:\n- `/help` — Open system manual\n- `/clear` — Reset terminal session\n- `↑` / `↓` — Navigate command history",
+    "**SYSTEM INITIALIZED** — SoSo Analyst v3.0 online.\n\nConnected to real-time crypto markets, ETF flows, macro events, treasury data, tokenomics, SoDEX market data, SoSo SSI indices, and deterministic market intelligence.\n\n---\n\n**22 data tools active** — including token intelligence, sector spotlight, macro calendar, ETF flow tracking, crypto equities, wallet analysis, and SoDEX order books.\n\n> ⚠️ **RESTRICTED SYSTEM**: This terminal is strictly calibrated for crypto market analysis. General knowledge queries will be rejected. See [SYSTEM MANUAL] for capabilities.\n\nConnect your wallet and sign in, then type a query or select a command below to begin analysis.\n\nAvailable commands:\n- `/help` — Open system manual\n- `/clear` — Reset terminal session\n- `↑` / `↓` — Navigate command history",
   timestamp: new Date(),
 };
 

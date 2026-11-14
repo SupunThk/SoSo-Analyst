@@ -13,34 +13,22 @@ test('has title', async ({ page }) => {
   await expect(page).toHaveTitle(/SoSo Analyst/);
 });
 
-test('can type in terminal input and receive streamed response', async ({ page }) => {
+test('asks signed-out users to sign in instead of calling the analysis engine', async ({ page }) => {
   await page.goto('/');
-
   await expect(page.locator('main')).toBeVisible();
-  
-  // Route stream request to mock SSE response
+
+  let streamRequests = 0;
   await page.route('**/api/agent/chat/stream', async (route) => {
-    const streamContent = [
-      'event: chunk\ndata: {"text": "Bull market"}\n\n',
-      'event: tool_done\ndata: {"name": "get_market_intelligence", "result": "Regime: Bull", "status": "success"}\n\n',
-      'event: chunk\ndata: {"text": " confirmed."}\n\n',
-      'event: done\ndata: {"answer": "Bull market confirmed.", "toolCalls": [{"name": "get_market_intelligence"}]}\n\n'
-    ].join('');
-    
-    await route.fulfill({
-      status: 200,
-      contentType: 'text/event-stream',
-      body: streamContent,
-    });
+    streamRequests += 1;
+    await route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"Valid wallet session is required."}' });
   });
 
   const input = page.getByPlaceholder('ENTER COMMAND OR QUERY...');
   await input.fill('show market regime');
   await input.press('Enter');
 
-  // Verify streamed response appears
-  await expect(page.getByText('Bull market confirmed.')).toBeVisible();
-  await expect(page.getByText('get_market_intelligence')).toBeVisible();
+  await expect(page.getByText('SIGN IN REQUIRED')).toBeVisible();
+  expect(streamRequests).toBe(0);
 });
 
 test('does not show saved history from stored auth before wallet is connected', async ({ page }) => {

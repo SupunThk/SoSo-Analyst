@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const helmet = require('helmet');
 const mongoose = require('mongoose');
 const rateLimit = require('express-rate-limit');
+const { getAllowedOrigins } = require('./utils/origins');
 const crypto = require('crypto');
 const dns = require('dns');
 
@@ -28,12 +29,7 @@ if (missingVars.length > 0) {
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const configuredOrigins = (process.env.CORS_ORIGIN || process.env.FRONTEND_URL || '')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
-const developmentOrigins = isProduction ? [] : ['http://localhost:3000', 'http://127.0.0.1:3000'];
-const allowedOrigins = [...new Set([...configuredOrigins, ...developmentOrigins])];
+const allowedOrigins = getAllowedOrigins();
 
 if (isProduction && allowedOrigins.length === 0) {
   console.error('CORS_ORIGIN must be configured in production.');

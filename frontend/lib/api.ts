@@ -419,12 +419,11 @@ export async function fetchTokenIntelligence(asset: string, signal?: AbortSignal
 // Auth and Chat History API
 export async function requestWalletNonce(walletAddress: string, signal?: AbortSignal): Promise<AuthNonceResponse> {
   try {
-    const domain = typeof window !== 'undefined' ? window.location.host : undefined;
     const uri = typeof window !== 'undefined' ? window.location.origin : undefined;
     const res = await fetch(apiUrl('/api/chats/auth/nonce'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ walletAddress, domain, uri }),
+      body: JSON.stringify({ walletAddress, uri }),
       signal
     });
     return readJson<AuthNonceResponse>(res);
