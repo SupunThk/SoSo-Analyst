@@ -266,7 +266,7 @@ const customToolExecutors = {
     } catch (officialEndpointError) {
       const [listResponse, historyResponse] = await Promise.all([
         sosoGet('/etfs', { symbol: assetSymbol, country_code: countryCode }),
-        sosoGet('/etfs/summary-history', { symbol: assetSymbol, country_code: countryCode, days })
+        sosoGet('/etfs/summary-history', { symbol: assetSymbol, country_code: countryCode, days: days + 1 })
       ]);
 
       const etfs = asArray(listResponse.data);

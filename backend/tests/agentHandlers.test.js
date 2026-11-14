@@ -54,7 +54,7 @@ describe('agentHandlers', () => {
     };
     
     routingMocks.getToolAllowlist.mockResolvedValue({
-      allowedFunctionNames: ['test_tool'],
+      allowedFunctionNames: ['test_tool', 'good_tool', 'bad_tool'],
       budget: { max: 3 },
       intent: 'general',
       routing: { intent: 'general', tools: ['test_tool'] }
@@ -140,5 +140,60 @@ describe('agentHandlers', () => {
     expect(toolResults).toHaveLength(2);
     expect(toolResults.find(t => t.name === 'good_tool').status).toBeUndefined();
     expect(toolResults.find(t => t.name === 'bad_tool').status).toBe('error');
+  });
+
+  it('never executes tools the router did not allow', async () => {
+    geminiMocks.postGeminiGenerateContent.mockResolvedValueOnce({
+      candidates: [{ content: { parts: [
+        { functionCall: { name: 'google_search:search', args: { queries: ['x'] } } },
+        { functionCall: { name: 'test_tool', args: { a: 1 } } }
+      ] } }]
+    }).mockResolvedValueOnce({
+      candidates: [{ content: { parts: [{ text: 'answer from data' }] } }]
+    });
+    executorsMocks.executeTool.mockResolvedValue({ preview: 'result' });
+
+    await handleChat(req, res);
+
+    expect(executorsMocks.executeTool).toHaveBeenCalledTimes(1);
+    expect(executorsMocks.executeTool.mock.calls[0][0]).toBe('test_tool');
+  });
+
+  it('asks for a final answer with tools off when the budget runs out mid-plan', async () => {
+    const wantsMore = (i) => ({ candidates: [{ content: { parts: [{ functionCall: { name: 'test_tool', args: { i } } }] } }] });
+    geminiMocks.postGeminiGenerateContent
+      .mockResolvedValueOnce(wantsMore(1))
+      .mockResolvedValueOnce(wantsMore(2))
+      .mockResolvedValueOnce(wantsMore(3))
+      .mockResolvedValueOnce(wantsMore(4))
+      .mockResolvedValueOnce({ candidates: [{ content: { parts: [{ text: 'final synthesis' }] } }] });
+    executorsMocks.executeTool.mockResolvedValue({ preview: 'result', status: 'success', payload: { summary: 'result' } });
+
+    await handleChat(req, res);
+
+    const lastCall = geminiMocks.postGeminiGenerateContent.mock.calls.at(-1);
+    expect(lastCall[1].finalAnswer).toBe(true);
+    expect(executorsMocks.executeTool).toHaveBeenCalledTimes(3);
+    expect(res.json.mock.calls[0][0].answer).toContain('final synthesis');
+  });
+  it('sends Gemini the tool payload, not the result wrapper', async () => {
+    geminiMocks.postGeminiGenerateContent.mockResolvedValueOnce({
+      candidates: [{ content: { parts: [{ functionCall: { name: 'test_tool', args: {} } }] } }]
+    }).mockResolvedValueOnce({
+      candidates: [{ content: { parts: [{ text: 'answer from data' }] } }]
+    });
+    executorsMocks.executeTool.mockResolvedValue({
+      args: {},
+      status: 'success',
+      preview: 'result',
+      payload: { source: 'SoSoValue', tool: 'test_tool', summary: 'BTC ETF inflows +$120M', evidence: [{ label: 'net', value: 120 }] }
+    });
+
+    await handleChat(req, res);
+
+    const followUp = geminiMocks.postGeminiGenerateContent.mock.calls[1][0];
+    const responsePart = followUp.flatMap((c) => c.parts || []).find((part) => part.functionResponse);
+    const sent = JSON.stringify(responsePart.functionResponse.response);
+    expect(sent).toContain('BTC ETF inflows');
   });
 });

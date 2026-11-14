@@ -21,13 +21,24 @@ const getSosoList = (payload) => {
 const normalizeEtfHistory = (records, days) => {
   const normalized = asArray(records).map((item) => ({
     date: item.date,
-    total_net_flow: item.totalNetInflow ?? item.total_net_flow ?? item.totalNetFlow ?? item.netFlow,
+    total_net_flow: item.totalNetInflow ?? item.total_net_inflow ?? item.total_net_flow ?? item.totalNetFlow ?? item.netFlow,
     total_value_traded: item.totalValueTraded ?? item.total_value_traded,
     total_net_assets: item.totalNetAssets ?? item.total_net_assets,
     cum_net_inflow: item.cumNetInflow ?? item.cum_net_inflow
   }));
 
   normalized.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  // The legacy ETF endpoint (used when v2 fails) only returns the cumulative inflow.
+  // Daily flow is then the day-over-day change; the oldest record has no baseline.
+  const toNumber = (value) => (value === null || value === undefined || value === '' ? null : Number(value));
+  normalized.forEach((item, index) => {
+    if (toNumber(item.total_net_flow) !== null) return;
+    const current = toNumber(item.cum_net_inflow);
+    const previous = index > 0 ? toNumber(normalized[index - 1].cum_net_inflow) : null;
+    item.total_net_flow = current !== null && previous !== null ? current - previous : null;
+  });
+
   return normalized.slice(-days);
 };
 
@@ -51,7 +62,10 @@ const normalizeEtfMetricItem = (item) => ({
 });
 
 const buildEtfFlowAnalytics = (historyData) => {
-  const flows = historyData.map((item) => Number(item.total_net_flow ?? 0));
+  const flows = historyData
+    .map((item) => item.total_net_flow)
+    .filter((value) => value !== null && value !== undefined && Number.isFinite(Number(value)))
+    .map(Number);
   const totalNetFlow = flows.reduce((sum, value) => sum + value, 0);
   const avgDailyFlow = flows.length ? totalNetFlow / flows.length : 0;
   let streak = 0;

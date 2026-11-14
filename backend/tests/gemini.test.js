@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'module';
-import { buildRequestBody, streamGeminiGenerateContent } from '../clients/gemini';
+import { buildRequestBody, mergeStreamChunk, selectModel, streamGeminiGenerateContent } from '../clients/gemini';
 import { EventEmitter } from 'events';
 
 const axios = createRequire(import.meta.url)('axios');
@@ -89,5 +89,73 @@ describe('buildRequestBody', () => {
     const body = buildRequestBody(contents, { responseMimeType: 'application/json', lightweight: true });
     expect(body.systemInstruction).toBeUndefined();
     expect(body.generationConfig.thinkingConfig.thinkingBudget).toBe(0);
+  });
+});
+
+describe('Gemini 3 request shape', () => {
+  const contents = [{ role: 'user', parts: [{ text: 'hi' }] }];
+  const g3 = 'gemini-3-flash-preview';
+
+  afterEach(() => { delete process.env.GEMINI_GOOGLE_SEARCH; });
+
+  it('sends data tools without built-in search (web search is the search_web tool)', () => {
+    const body = buildRequestBody(contents, { allowedFunctionNames: ['get_asset_snapshot', 'search_web'] }, g3);
+    expect(body.tools).toHaveLength(1);
+    expect(body.tools[0].functionDeclarations.map((d) => d.name)).toEqual(['search_web', 'get_asset_snapshot']);
+    expect(body.toolConfig).toEqual({ functionCallingConfig: { mode: 'AUTO' } });
+  });
+
+  it('turns function calling off for the final-answer call', () => {
+    const body = buildRequestBody(contents, { allowedFunctionNames: ['get_asset_snapshot'], finalAnswer: true }, g3);
+    expect(body.toolConfig.functionCallingConfig.mode).toBe('NONE');
+  });
+
+  it('uses thinking levels and the default temperature', () => {
+    const body = buildRequestBody(contents, {}, g3);
+    expect(body.generationConfig.thinkingConfig).toEqual({ thinkingLevel: 'high' });
+    expect(body.generationConfig.temperature).toBeUndefined();
+  });
+
+  it('can switch Google Search off', () => {
+    process.env.GEMINI_GOOGLE_SEARCH = 'off';
+    const body = buildRequestBody(contents, { allowedFunctionNames: [] }, g3);
+    expect(body.tools).toBeUndefined();
+  });
+
+  it('picks models from env, with the light model for classifier calls', () => {
+    process.env.GEMINI_MODEL_FLASH = 'gemini-3-flash-preview';
+    process.env.GEMINI_MODEL_LIGHT = 'gemini-3.1-flash-lite';
+    expect(selectModel(1, 0)).toBe('gemini-3-flash-preview');
+    expect(selectModel(1, 0, { lightweight: true })).toBe('gemini-3.1-flash-lite');
+    expect(selectModel(1, 0, { model: 'x' })).toBe('x');
+    delete process.env.GEMINI_MODEL_FLASH;
+    delete process.env.GEMINI_MODEL_LIGHT;
+  });
+});
+
+describe('mergeStreamChunk', () => {
+  const chunk = (parts, extra = {}) => ({ candidates: [{ content: { role: 'model', parts }, ...extra }] });
+
+  it('keeps parallel calls to the same tool with different args', () => {
+    let full = mergeStreamChunk(null, chunk([{ functionCall: { name: 'get_asset_snapshot', args: { asset: 'BTC' } } }]));
+    full = mergeStreamChunk(full, chunk([{ functionCall: { name: 'get_asset_snapshot', args: { asset: 'ETH' } } }]));
+    expect(full.candidates[0].content.parts.map((p) => p.functionCall.args.asset)).toEqual(['BTC', 'ETH']);
+  });
+
+  it('keeps Gemini 3 server-side search parts and thought signatures', () => {
+    let full = mergeStreamChunk(null, chunk([{ toolCall: { id: 's1' }, thoughtSignature: 'sig-a' }]));
+    full = mergeStreamChunk(full, chunk([{ toolResponse: { id: 's1' }, thoughtSignature: 'sig-b' }]));
+    full = mergeStreamChunk(full, chunk([{ functionCall: { name: 'get_asset_snapshot', args: {} }, thoughtSignature: 'sig-c' }], { finishReason: 'STOP' }));
+    const parts = full.candidates[0].content.parts;
+    expect(parts.map((p) => p.thoughtSignature)).toEqual(['sig-a', 'sig-b', 'sig-c']);
+    expect(full.candidates[0].finishReason).toBe('STOP');
+  });
+
+  it('joins streamed text and skips thought text when emitting chunks', () => {
+    const seen = [];
+    let full = mergeStreamChunk(null, chunk([{ text: 'planning', thought: true }, { text: 'BTC ' }]), (t) => seen.push(t));
+    full = mergeStreamChunk(full, chunk([{ text: 'is up.' }]), (t) => seen.push(t));
+    expect(seen).toEqual(['BTC ', 'is up.']);
+    expect(full.candidates[0].content.parts.at(-1).text).toBe('BTC is up.');
   });
 });

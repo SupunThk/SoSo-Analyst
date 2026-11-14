@@ -171,6 +171,13 @@ const ROUTING_RULES = [
     followUp: 'Report returned spot/perps market names and ticker values; do not discuss trade execution.'
   },
   {
+    intent: 'crypto_events',
+    pattern: /\b(regulat\w*|sec|cftc|mica|lawsuits?|legislation|congress|senate|bill|policy|ban(?:ned|s)?|enforcement|hack(?:ed|s)?|exploits?|delist\w*|outage|bankrupt\w*)\b/i,
+    tools: ['search_web', 'get_hot_news_digest'],
+    budget: 'standard',
+    followUp: 'Use search_web for the event itself and the hot news digest for crypto-native coverage. Attribute web findings with dates; never present them as SoSoValue data.'
+  },
+  {
     intent: 'altcoin_overview',
     pattern: /\b(alt ?coins?|alts|altseason)\b/i,
     tools: ['get_market_intelligence', 'get_sector_spotlight'],
@@ -188,7 +195,7 @@ const ROUTING_RULES = [
 
 const DEFAULT_ROUTING = {
   intent: 'general_market',
-  tools: ['get_market_intelligence', 'get_hot_news_digest'],
+  tools: ['get_market_intelligence', 'get_hot_news_digest', 'search_web'],
   budget: 'standard',
   followUp: 'IMPORTANT: If the user question is specific (about a token, a price, a gainer, etc.) but the market intelligence data does not directly answer it, state clearly what data is available and what is missing rather than giving a generic market summary. Ask the user to rephrase with a specific asset name if needed.'
 };
@@ -247,6 +254,7 @@ const REPORT_SHAPES = {
   sodex_analytics: 'SoDEX analytics report: total volume/pairs, most traded pairs, top gainers, top losers, tightest spreads, and exchange-scope caveat.',
   sodex_orderbook: 'Order book report: bid/ask, spread, depth levels, liquidity interpretation, and execution caveat. Do not invent trade advice.',
   sodex_markets: 'SoDEX markets report: active spot/perps markets, ticker values, notable volume/move rows, and source scope.',
+  crypto_events: 'Event report: what happened (dated, attributed to its outlet), who is affected, market readthrough from returned data, and what to watch next. Do not speculate beyond the sources.',
   altcoin_overview: 'Altcoin report: breadth vs BTC, leading and lagging sectors, notable altcoin movers from returned rows, and rotation readthrough.',
   asset_snapshot: 'Asset snapshot report: exact price, 24h change, market cap, 24h volume, rank if available, short context, and data caveat.'
 };

@@ -63,9 +63,18 @@ const validatePayload = (schema, value) => {
   };
 };
 
+// What Gemini sees for a tool call: the normalised payload, compacted. Error results
+// carry no payload and are compacted as-is. (Passing the {args, payload, preview}
+// wrapper here sent Gemini an empty object for every tool.)
+const toGeminiToolResponse = (resultData) =>
+  compressToolPayloadForGemini(resultData?.payload ?? resultData);
+
 const getCandidateParts = (response) => response?.candidates?.[0]?.content?.parts || [];
 
-const getFunctionCalls = (response) => getCandidateParts(response).filter((part) => part.functionCall);
+// Only calls to tools the router allowed are executed; anything else (an undeclared
+// name, or a built-in like google_search surfacing as a call) is ignored.
+const getFunctionCalls = (response, allowed = null) => getCandidateParts(response)
+  .filter((part) => part.functionCall && (!allowed || allowed.has(part.functionCall.name)));
 
 const extractAnswer = (response) => {
   const candidate = response?.candidates?.[0];
@@ -277,7 +286,7 @@ const runAgentLoop = async (contents, options = {}) => {
   const toolCallDedup = new Map();
   for (const { name, resultData } of initialToolResults) {
     const cacheKey = makeToolCacheKey(name, resultData.args);
-    toolCallDedup.set(cacheKey, { resultData, compressed: compressToolPayloadForGemini(resultData) });
+    toolCallDedup.set(cacheKey, { resultData, compressed: toGeminiToolResponse(resultData) });
   }
 
   if (toolAnalyses.length) {
@@ -288,7 +297,7 @@ const runAgentLoop = async (contents, options = {}) => {
     lastSynthesizedAnalysisCount = toolAnalyses.length;
   }
 
-  const callGemini = async (currentContents) => {
+  const callGemini = async (currentContents, extraOptions = {}) => {
     if (shouldAbort()) {
       const error = new Error('Client disconnected');
       error.status = 499;
@@ -296,7 +305,8 @@ const runAgentLoop = async (contents, options = {}) => {
     }
     const callOptions = {
       toolCallCount: toolCallsMade.length,
-      allowedFunctionNames
+      allowedFunctionNames,
+      ...extraOptions
     };
     if (options.onChunk) {
       return streamGeminiGenerateContent(currentContents, options.onChunk, callOptions);
@@ -307,7 +317,8 @@ const runAgentLoop = async (contents, options = {}) => {
 
   const currentContents = [...contents];
   let previousResponse = await callGemini(currentContents);
-  let toolCallsToExecute = getFunctionCalls(previousResponse);
+  const allowedTools = new Set(allowedFunctionNames);
+  let toolCallsToExecute = getFunctionCalls(previousResponse, allowedTools);
 
   for (let iteration = 1; iteration <= MAX_GEMINI_ITERATIONS && toolCallsToExecute.length > 0; iteration++) {
     if (shouldAbort()) {
@@ -327,7 +338,11 @@ const runAgentLoop = async (contents, options = {}) => {
       toolCallsToExecute = toolCallsToExecute.slice(0, budgetRemaining);
     }
 
-    const modelParts = getCandidateParts(previousResponse);
+    // Echo the model turn with only the calls we will answer: every functionCall
+    // sent back needs a matching functionResponse.
+    const executing = new Set(toolCallsToExecute);
+    const modelParts = getCandidateParts(previousResponse)
+      .filter((part) => !part.functionCall || executing.has(part));
     if (modelParts.length) {
       currentContents.push({
         role: 'model',
@@ -375,7 +390,7 @@ const runAgentLoop = async (contents, options = {}) => {
           };
         }
 
-        return { resultData, compressed: compressToolPayloadForGemini(resultData) };
+        return { resultData, compressed: toGeminiToolResponse(resultData) };
       })();
 
       toolCallDedup.set(cacheKey, pending);
@@ -425,7 +440,7 @@ const runAgentLoop = async (contents, options = {}) => {
 
     onStatus?.({ phase: 'reasoning', message: `Processing results (step ${iteration})...` });
     previousResponse = await callGemini(currentContents);
-    toolCallsToExecute = getFunctionCalls(previousResponse);
+    toolCallsToExecute = getFunctionCalls(previousResponse, allowedTools);
 
     const hasTextAnswer = getCandidateParts(previousResponse).some((part) =>
       typeof part.text === 'string' && part.text.trim().length > 50
@@ -433,6 +448,16 @@ const runAgentLoop = async (contents, options = {}) => {
     if (hasTextAnswer && toolCallsToExecute.length > 0 && totalToolInvocations >= budget.max) {
       break;
     }
+  }
+
+  // The loop can stop (tool budget or iteration cap) while the model still wants
+  // more tools, leaving no text. Ask once more with function calling off so it
+  // answers from the data already gathered.
+  const hasTextAnswer = getCandidateParts(previousResponse)
+    .some((part) => typeof part.text === 'string' && !part.thought && part.text.trim());
+  if (!hasTextAnswer && toolCallsMade.length > 0 && !shouldAbort()) {
+    onStatus?.({ phase: 'generating', message: 'Writing the answer from gathered data...' });
+    previousResponse = await callGemini(currentContents, { finalAnswer: true });
   }
 
   const result = {

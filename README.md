@@ -67,6 +67,8 @@ SYSTEM_PROMPT_VERSION=v3
 GEMINI_TOOL_PAYLOAD_MAX_CHARS=12000
 ```
 
+Optional switches: `GEMINI_MODEL_FLASH`, `GEMINI_MODEL_PRO`, `GEMINI_MODEL_LIGHT` and `GEMINI_MODEL_SEARCH` pick the Gemini models (all default to the 2.5 family; Gemini 3 ids such as `gemini-3-flash-preview` also work, so a model switch or rollback is an env change). `GEMINI_GOOGLE_SEARCH=off` disables the `search_web` tool (Google Search grounding for regulation, hacks and other news). `LLM_INTENT_CLASSIFIER=off` turns off the cached LLM fallback router, leaving regex routing only. Compare model sets with `npm run eval:models` (live, uses your API keys).
+
 `ETHERSCAN_CHAIN_IDS` controls the EVM chains scanned for wallet portfolio analysis. Defaults cover Ethereum, Base, BNB Smart Chain, Polygon, Arbitrum, OP Mainnet, and Avalanche C-Chain. Some Etherscan V2 chains require a paid API tier; failed chains are reported in the portfolio response instead of failing the whole analysis.
 
 #### Frontend: `frontend/.env.local`

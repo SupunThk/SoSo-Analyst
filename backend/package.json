@@ -8,7 +8,8 @@
     "start": "node server.js",
     "test": "node scripts/check-syntax.js && vitest run",
     "test:evals": "vitest run tests/evals.test.js",
-    "test:evals:live": "node scripts/live-eval.js"
+    "test:evals:live": "node scripts/live-eval.js",
+    "eval:models": "node scripts/model-eval.js"
   },
   "engines": {
     "node": ">=22 <25",

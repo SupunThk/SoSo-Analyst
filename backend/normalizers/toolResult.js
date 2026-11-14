@@ -325,6 +325,10 @@ const summarizeToolData = (toolName, args, data) => {
   const arrayData = asArray(data);
 
   switch (toolName) {
+    case 'search_web': {
+      const sources = asArray(data?.sources).map((source) => source.title).filter(Boolean).slice(0, 4).join(', ');
+      return `Web search for "${args?.query || ''}" returned ${asArray(data?.sources).length} sources${sources ? ` (${sources})` : ''}.`;
+    }
     case 'get_market_intelligence': {
       const regime = data?.regime || {};
       const leaders = asArray(data?.rotation?.leaders).slice(0, 3).map((item) => item.name || item.ticker).join(', ');
@@ -522,7 +526,9 @@ const normalizeToolResult = (toolName, args, apiPayload, requestMeta) => {
   const analysis = analyzeToolResult(toolName, data, args);
   const summary = summarizeToolData(toolName, args, data);
   const evidenceFacts = buildEvidenceFacts(toolName, args, data, analysis);
-  const source = toolName === 'get_wallet_holdings'
+  const source = toolName === 'search_web'
+    ? 'Google Search'
+    : toolName === 'get_wallet_holdings'
     ? 'Etherscan'
     : toolName.includes('sodex')
       ? 'SoDEX'

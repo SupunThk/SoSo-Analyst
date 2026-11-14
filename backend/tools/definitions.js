@@ -1,5 +1,16 @@
 const allDeclarations = [
   {
+    name: 'search_web',
+    description: 'Search the public web (Google) for recent crypto news, regulation and policy, lawsuits, hacks, exchange incidents, or events the market data tools do not cover. Returns a short dated summary with source links. Prefer the SoSoValue/SoDEX tools for prices, flows and metrics.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        query: { type: 'STRING', description: 'A focused web search query, e.g. "SEC crypto ETF decision this week".' }
+      },
+      required: ['query']
+    }
+  },
+  {
     name: 'get_market_intelligence',
     description: 'Get the complete deterministic market intelligence layer: market regime, SoSo SSI/index rotation, sector heatmap, opportunity scanner, SoDEX liquidity context, and active alert triggers. Use for market overview, regime, rotation, opportunities, scanner, or alert questions.',
     parameters: {

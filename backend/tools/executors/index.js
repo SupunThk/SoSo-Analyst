@@ -12,6 +12,7 @@ const { TOOL_ENDPOINTS } = require('./endpoints');
 const { customToolExecutors } = require('./custom');
 const { getWalletHoldings } = require('./wallet');
 const { getSodexMarkets, getSodexOrderbook, getSodexAnalytics } = require('./sodex');
+const { searchWeb } = require('./webSearch');
 const { sleep } = require('../../utils/common');
 
 const allCustomExecutors = {
@@ -19,7 +20,8 @@ const allCustomExecutors = {
   get_wallet_holdings: getWalletHoldings,
   get_sodex_markets: getSodexMarkets,
   get_sodex_orderbook: getSodexOrderbook,
-  get_sodex_analytics: getSodexAnalytics
+  get_sodex_analytics: getSodexAnalytics,
+  search_web: searchWeb
 };
 
 const resolveToolArgs = (name, args = {}, context = {}) => {
