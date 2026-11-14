@@ -14,7 +14,6 @@
     "npm": ">=10"
   },
   "dependencies": {
-    "@ducanh2912/next-pwa": "10.2.9",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@mui/material": "^9.5.0",
@@ -36,12 +35,9 @@
   },
   "overrides": {
     "@walletconnect/ethereum-provider": "2.23.9",
-    "postcss": "8.5.14",
+    "postcss": "8.5.33",
+    "axios": "1.21.1",
     "uuid": "11.1.1",
-    "workbox-build": "7.4.1",
-    "workbox-core": "7.4.1",
-    "workbox-webpack-plugin": "7.4.1",
-    "workbox-window": "7.4.1",
     "ws": "8.21.0"
   },
   "devDependencies": {

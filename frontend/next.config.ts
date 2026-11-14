@@ -1,17 +1,12 @@
 import type { NextConfig } from "next";
 import path from "node:path";
-import withPWAInit from "@ducanh2912/next-pwa";
 
-const withPWA = withPWAInit({
-  dest: "public",
-  disable: process.env.NODE_ENV === "development",
-  register: true,
-});
-
+// @ducanh2912/next-pwa was removed: it is a webpack plugin and generated no service
+// worker under Turbopack builds. public/manifest.json still makes the app installable.
 const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname),
   },
 };
 
-export default withPWA(nextConfig);
+export default nextConfig;
