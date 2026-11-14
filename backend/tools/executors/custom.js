@@ -508,7 +508,8 @@ const customToolExecutors = {
         total_supply: total,
         max_supply: max,
         supply_ratio: (circulating && max) ? `${((circulating / max) * 100).toFixed(1)}%` : (circulating && total) ? `${((circulating / total) * 100).toFixed(1)}%` : null,
-        is_inflationary: max ? circulating < max : null,
+        // Unknown circulating supply must stay unknown (null < max would read as true).
+        is_inflationary: max && circulating ? circulating < max : null,
         remaining_supply: (max && circulating) ? max - circulating : null
       },
       supplyHistory: supplyHistory.map((s) => ({
