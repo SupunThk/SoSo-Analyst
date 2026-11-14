@@ -1,0 +1,464 @@
+import assert from 'node:assert/strict';
+import { Readable } from 'node:stream';
+import express from 'express';
+import axios from 'axios';
+import mongoose from 'mongoose';
+import { ethers } from 'ethers';
+import Chat from '../models/Chat.ts';
+import User from '../models/User.ts';
+import { buildLoginMessage, hashWallet, hashValue } from '../utils/auth.ts';
+
+const originalAxiosGet = axios.get;
+const originalAxiosPost = axios.post;
+const originalReadyState = mongoose.connection.readyState;
+const originalUserFindOne = User.findOne;
+const originalUserFindOneAndUpdate = User.findOneAndUpdate;
+const originalChatFindOneAndUpdate = Chat.findOneAndUpdate;
+const originalChatSave = Chat.prototype.save;
+
+const startServer = (mountPath, router) => {
+  const app = express();
+  app.use(express.json());
+  app.use(mountPath, router);
+
+  return new Promise((resolve) => {
+    const server = app.listen(0, () => resolve(server));
+  });
+};
+
+const closeServer = (server) => new Promise<void>((resolve, reject) => {
+  server.close((error) => (error ? reject(error) : resolve()));
+});
+
+const urlFor = (server, path) => `http://127.0.0.1:${server.address().port}${path}`;
+
+const parseSse = (text) => text
+  .trim()
+  .split(/\r?\n\r?\n/)
+  .filter(Boolean)
+  .map((block) => {
+    const eventLine = block.split(/\r?\n/).find((line) => line.startsWith('event: '));
+    const dataLine = block.split(/\r?\n/).find((line) => line.startsWith('data: '));
+    return {
+      event: eventLine?.slice(7),
+      data: dataLine ? JSON.parse(dataLine.slice(6)) : null
+    };
+  });
+
+const geminiStreamResponse = (text) => ({
+  data: Readable.from([
+    `data: ${JSON.stringify({
+      candidates: [{
+        content: {
+          role: 'model',
+          parts: [{ text }]
+        }
+      }]
+    })}\n\n`
+  ])
+});
+
+// Fresh module instances, so env changes made by a test take effect.
+const resetAgentModules = () => {
+  vi.resetModules();
+};
+
+const testAgentStreamInjectsVerifiedWallet = async () => {
+  const wallet = ethers.Wallet.createRandom().address;
+  const postedBodies = [];
+
+  process.env.GEMINI_API_KEY = 'test-gemini-key';
+  process.env.SOSO_API_KEY = 'test-soso-key';
+  process.env.ETHERSCAN_API_KEY = 'test-etherscan-key';
+  process.env.ETHERSCAN_CHAIN_IDS = '1,137';
+  (mongoose.connection as any).readyState = 1;
+
+  (User as any).findOne = async (query) => {
+    assert.equal(query.sessionTokenHash, hashValue('route-test-token'));
+    return {
+      publicWalletAddress: wallet,
+      walletAddress: hashWallet(wallet)
+    };
+  };
+
+  (axios as any).post = async (url, body) => {
+    postedBodies.push(body);
+    if (url.includes(':streamGenerateContent')) {
+      return geminiStreamResponse('Portfolio analysis ready.');
+    }
+
+    // Mock for the LLM intent classifier
+    return {
+      data: {
+        candidates: [{
+          content: {
+            role: 'model',
+            parts: [{ text: '{"intents": ["portfolio"]}' }]
+          }
+        }]
+      }
+    };
+  };
+
+  (axios as any).get = async (url, options: Record<string, any> = {}) => {
+    if (url.includes('api.coingecko.com')) {
+      return { data: { ethereum: { usd: 2500 }, 'matic-network': { usd: 1 }, 'polygon-ecosystem-token': { usd: 1 } } };
+    }
+
+    if (url.includes('api.etherscan.io') && options.params?.action === 'balance') {
+      return {
+        data: {
+          status: '1',
+          message: 'OK',
+          result: options.params.chainid === '1' ? '1000000000000000000' : '0'
+        }
+      };
+    }
+
+    if (url.includes('api.etherscan.io') && options.params?.action === 'tokentx') {
+      return { data: { status: '1', message: 'OK', result: [] } };
+    }
+
+    if (url.includes('open-api.openocean.finance')) {
+      return { data: { data: [{ symbol: 'ETH', price: 2500 }] } };
+    }
+
+    throw new Error(`Unexpected GET ${url}`);
+  };
+
+  resetAgentModules();
+  const server = await startServer('/api/agent', (await import('../routes/agent.ts')).default);
+  try {
+    const response = await fetch(urlFor(server, '/api/agent/chat/stream'), {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer route-test-token',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        walletAddress: wallet,
+        messages: [{ role: 'user', content: 'Analyze my portfolio' }],
+        conversationHistory: []
+      })
+    });
+    const events = parseSse(await response.text());
+    const toolStart = events.find((item) => item.event === 'tool_start');
+    const toolDone = events.find((item) => item.event === 'tool_done');
+    const done = events.find((item) => item.event === 'done');
+
+    assert.equal(response.status, 200);
+    assert.equal(toolStart.data.name, 'get_wallet_holdings');
+    assert.equal(toolStart.data.args.address, wallet);
+    assert.equal(toolDone.data.input.address, wallet);
+    assert.equal(toolDone.data.status, 'success');
+    assert.match(toolDone.data.result, /Ethereum Mainnet/);
+    assert.match(toolDone.data.result, /Polygon Mainnet/);
+    assert.equal(done.data.answer, 'Portfolio analysis ready.');
+    assert.equal(done.data.toolCalls.length, 1);
+    assert.equal(done.data.toolCalls[0].name, 'get_wallet_holdings');
+    assert.equal(done.data.toolCalls[0].input.address, wallet);
+
+    const streamBody = postedBodies.find(b => b.contents && b.contents.some(item => item.parts?.some(part => String(part.text || '').includes('DETERMINISTIC TOOL ROUTING HINT'))));
+    assert.ok(streamBody, 'Stream body should contain DETERMINISTIC TOOL ROUTING HINT');
+    assert.ok(streamBody.contents.some((item) =>
+      item.parts?.some((part) => String(part.text || '').includes('CONNECTED_WALLET_CONTEXT'))
+    ));
+    assert.ok(streamBody.contents.some((item) =>
+      item.parts?.some((part) => String(part.text || '').includes('PRELOADED_TOOL_RESULT: get_wallet_holdings'))
+    ));
+  } finally {
+    await closeServer(server);
+  }
+};
+
+const testAgentChatRequiresLogin = async () => {
+  (axios as any).post = async () => {
+    throw new Error('Gemini should not be called without a signed-in wallet');
+  };
+  (mongoose.connection as any).readyState = 0;
+
+  resetAgentModules();
+  const server = await startServer('/api/agent', (await import('../routes/agent.ts')).default);
+  try {
+    for (const path of ['/api/agent/chat', '/api/agent/chat/stream']) {
+      const response = await fetch(urlFor(server, path), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: 'Analyze my portfolio' }],
+          conversationHistory: []
+        })
+      });
+      assert.equal(response.status, 401, `${path} should require a session`);
+    }
+  } finally {
+    await closeServer(server);
+  }
+};
+
+const testChatRoutesWithMockedDatabase = async () => {
+  const wallet = ethers.Wallet.createRandom().address;
+  let nonceUpdate = null;
+  let savedChat = null;
+
+  (mongoose.connection as any).readyState = 1;
+  (User as any).findOneAndUpdate = async (query, update, options) => {
+    nonceUpdate = { query, update, options };
+    return {};
+  };
+  (User as any).findOne = async (query) => {
+    if (query.walletAddress) {
+      assert.equal(query.walletAddress, hashWallet(wallet));
+      return null;
+    }
+
+    assert.equal(query.sessionTokenHash, hashValue('chat-route-token'));
+    return {
+      publicWalletAddress: wallet,
+      walletAddress: hashWallet(wallet),
+      sessionExpiresAt: new Date(Date.now() + 60000)
+    };
+  };
+  Chat.prototype.save = async function save() {
+    savedChat = this;
+    return this;
+  };
+
+  const server = await startServer('/api/chats', (await import('../routes/chats.ts')).default);
+  try {
+    const nonceResponse = await fetch(urlFor(server, '/api/chats/auth/nonce'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: 'http://localhost:3000' },
+      body: JSON.stringify({ walletAddress: wallet.toLowerCase() })
+    });
+    const nonce = (await nonceResponse.json()) as any;
+
+    assert.equal(nonceResponse.status, 200);
+    assert.equal(nonce.walletAddress, wallet);
+    assert.ok(nonce.message.includes(wallet));
+    assert.equal(nonceUpdate.query.walletAddress, hashWallet(wallet));
+    assert.equal(nonceUpdate.options.upsert, true);
+
+    const createResponse = await fetch(urlFor(server, '/api/chats'), {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer chat-route-token',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ walletAddress: wallet, title: 'Route Test Chat' })
+    });
+    const created = (await createResponse.json()) as any;
+
+    assert.equal(createResponse.status, 200);
+    assert.equal(savedChat.walletAddress, hashWallet(wallet));
+    assert.equal(savedChat.title, 'Route Test Chat');
+    assert.equal(created.title, 'Route Test Chat');
+  } finally {
+    await closeServer(server);
+  }
+};
+
+const testChatNonceRejectsUnknownOrigin = async () => {
+  const wallet = ethers.Wallet.createRandom().address;
+  (mongoose.connection as any).readyState = 1;
+  (User as any).findOneAndUpdate = async () => {
+    throw new Error('No nonce should be stored for a foreign origin');
+  };
+
+  const server = await startServer('/api/chats', (await import('../routes/chats.ts')).default);
+  try {
+    const response = await fetch(urlFor(server, '/api/chats/auth/nonce'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: 'https://phishing.example' },
+      body: JSON.stringify({ walletAddress: wallet, uri: 'https://phishing.example' })
+    });
+    assert.equal(response.status, 400);
+  } finally {
+    await closeServer(server);
+  }
+};
+
+const testChatNonceIssuesFreshSignedMessage = async () => {
+  // Each nonce request issues a new nonce and stores the exact message the wallet must sign,
+  // so a stale (even unexpired) nonce is never replayed.
+  const wallet = ethers.Wallet.createRandom().address;
+  let stored = null;
+
+  (mongoose.connection as any).readyState = 1;
+  (User as any).findOne = async () => {
+    throw new Error('Nonce issuance should not reuse an existing nonce');
+  };
+  (User as any).findOneAndUpdate = async (query, update) => {
+    stored = { query, update };
+    return {};
+  };
+
+  const server = await startServer('/api/chats', (await import('../routes/chats.ts')).default);
+  try {
+    const response = await fetch(urlFor(server, '/api/chats/auth/nonce'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: 'http://localhost:3000' },
+      body: JSON.stringify({ walletAddress: wallet.toLowerCase() })
+    });
+    const body = (await response.json()) as any;
+
+    assert.equal(response.status, 200);
+    assert.equal(body.walletAddress, wallet);
+    assert.equal(stored.query.walletAddress, hashWallet(wallet));
+    assert.ok(stored.update.$set.loginNonce);
+    assert.equal(stored.update.$set.loginMessage, body.message);
+    assert.ok(body.message.includes(wallet));
+    assert.ok(body.message.startsWith('localhost:3000 wants you to sign in'));
+    assert.match(body.message, /Expiration Time: /);
+    assert.equal(body.expiresAt, stored.update.$set.loginNonceExpiresAt.toISOString());
+  } finally {
+    await closeServer(server);
+  }
+};
+
+const testSosoUpstreamErrorHandling = async () => {
+  process.env.SOSO_API_KEY = 'test-soso-key';
+  const originalConsoleError = console.error;
+  (axios as any).get = async () => {
+    const error: Error & { code?: string } = new Error('timeout');
+    error.code = 'ECONNABORTED';
+    throw error;
+  };
+  console.error = () => {};
+
+  const server = await startServer('/api/soso', (await import('../routes/sosovalue.ts')).default);
+  try {
+    const response = await fetch(urlFor(server, '/api/soso/currencies'));
+    const body = (await response.json()) as any;
+
+    assert.equal(response.status, 504);
+    assert.equal(body.error, true);
+    assert.equal(body.message, 'SoSoValue request timed out.');
+    assert.equal(body.requestId, undefined);
+  } finally {
+    console.error = originalConsoleError;
+    await closeServer(server);
+  }
+};
+
+const testSodexProfileRouteBuildsRealDashboard = async () => {
+  const wallet = ethers.Wallet.createRandom().address;
+  process.env.SODEX_REST_BASE_URL = 'https://mainnet-gw.sodex.dev/api/v1';
+
+  (User as any).findOne = async (query) => {
+    assert.equal(query.sessionTokenHash, hashValue('sodex-profile-token'));
+    return {
+      publicWalletAddress: wallet,
+      walletAddress: hashWallet(wallet)
+    };
+  };
+
+  (axios as any).get = async (url) => {
+    if (url.endsWith(`/spot/accounts/${wallet}/state`)) {
+      return {
+        data: {
+          code: 0,
+          data: {
+            B: [
+              { a: 'vUSDC', t: '100' },
+              { a: 'vBTC', t: '0.5' }
+            ]
+          }
+        }
+      };
+    }
+
+    if (url.endsWith('/spot/markets/tickers')) {
+      return {
+        data: {
+          code: 0,
+          data: {
+            list: [
+              { s: 'vBTC_vUSDC', lastPx: '60000' }
+            ]
+          }
+        }
+      };
+    }
+
+    if (url.endsWith(`/perps/accounts/${wallet}/state`)) {
+      return {
+        data: {
+          code: 0,
+          data: {
+            A: { av: '1000', am: '800' },
+            P: [
+              { s: 'BTC-USD', sz: '0.1', ep: '65000', mp: '70000', upnl: '500' }
+            ]
+          }
+        }
+      };
+    }
+
+    if (url.endsWith('/perps/markets/tickers')) {
+      return { data: { code: 0, data: { list: [{ s: 'BTC-USD', lastPx: '70000' }] } } };
+    }
+
+    if (url.includes('/trades')) {
+      return {
+        data: {
+          code: 0,
+          data: [
+            { s: url.includes('/perps/') ? 'BTC-USD' : 'vBTC_vUSDC', S: 'BUY', p: '60000', q: '0.01', T: Date.now() }
+          ]
+        }
+      };
+    }
+
+    if (url.includes('/orders/history')) {
+      return { data: { code: 0, data: [] } };
+    }
+
+    if (url.includes('/orders')) {
+      return { data: { code: 0, data: [{ s: 'BTC-USD', S: 'SELL', p: '71000', q: '0.01' }] } };
+    }
+
+    throw new Error(`Unexpected SoDEX GET ${url}`);
+  };
+
+  const server = await startServer('/api/sodex', (await import('../routes/sodex.ts')).default);
+  try {
+    const unauthorized = await fetch(urlFor(server, `/api/sodex/profile/${wallet}`));
+    assert.equal(unauthorized.status, 401);
+
+    const response = await fetch(urlFor(server, `/api/sodex/profile/${wallet}`), {
+      headers: { Authorization: 'Bearer sodex-profile-token' }
+    });
+    const body = (await response.json()) as any;
+
+    assert.equal(response.status, 200);
+    assert.equal(body.walletAddress, wallet);
+    assert.equal(body.summary.netValueUsd, 31100);
+    assert.equal(body.summary.activePositions, 1);
+    assert.equal(body.summary.recentTrades, 2);
+    assert.equal(body.spot.balances[0].asset, 'VBTC');
+    assert.equal(body.perps.positions[0].symbol, 'BTC-USD');
+  } finally {
+    await closeServer(server);
+  }
+};
+
+test('route integration', async () => {
+  try {
+    await testAgentStreamInjectsVerifiedWallet();
+    await testAgentChatRequiresLogin();
+    await testChatRoutesWithMockedDatabase();
+    await testChatNonceIssuesFreshSignedMessage();
+    await testChatNonceRejectsUnknownOrigin();
+    await testSodexProfileRouteBuildsRealDashboard();
+    await testSosoUpstreamErrorHandling();
+  } finally {
+    (axios as any).get = originalAxiosGet;
+    (axios as any).post = originalAxiosPost;
+    (mongoose.connection as any).readyState = originalReadyState;
+    (User as any).findOne = originalUserFindOne;
+    (User as any).findOneAndUpdate = originalUserFindOneAndUpdate;
+    Chat.findOneAndUpdate = originalChatFindOneAndUpdate;
+    Chat.prototype.save = originalChatSave;
+  }
+});

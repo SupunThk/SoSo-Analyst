@@ -13,7 +13,7 @@ SoSo Analyst is a professional AI-powered crypto research terminal. It allows us
 ## Tech Stack
 
 - **Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS.
-- **Backend**: Node.js, Express, MongoDB/Mongoose.
+- **Backend**: TypeScript on Node.js (run directly with native type stripping, no build step), Express, MongoDB/Mongoose.
 - **AI/Data**: Gemini, SoSoValue, SoDEX, Etherscan.
 - **Deployment**: Vercel for frontend, Render for backend.
 
@@ -21,7 +21,7 @@ SoSo Analyst is a professional AI-powered crypto research terminal. It allows us
 
 ### Prerequisites
 
-- Node.js `22+`
+- Node.js `22.18+` (the backend runs `.ts` files natively)
 - npm `10+`
 - SoSoValue API key
 - Google Gemini API key
@@ -96,6 +96,8 @@ Default local URLs:
 Chat requires signing a backend nonce in the browser wallet, so `MONGO_URI` must be set. The login message names the site it was issued for, and the backend only issues it for origins listed in `CORS_ORIGIN`. Market data pages work without a wallet.
 
 ## Testing
+
+`npm test --prefix backend` type-checks the backend (`tsc`) and then runs the vitest suite.
 
 ```bash
 npm test --prefix backend

@@ -1,19 +1,21 @@
 {
   "compilerOptions": {
     "target": "ES2023",
-    "module": "node16",
-    "moduleResolution": "node16",
     "lib": ["ES2023"],
-    "types": ["node"],
-    "allowJs": true,
-    "checkJs": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node", "vitest/globals"],
+    // Node runs the .ts sources directly by stripping types: only erasable
+    // syntax, explicit .ts import paths, and type-only imports marked as such.
     "noEmit": true,
-    "strict": false,
-    "noImplicitAny": false,
-    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
     "resolveJsonModule": true,
-    "esModuleInterop": true
+    "skipLibCheck": true,
+    "strict": false,
+    "noImplicitAny": false
   },
-  "include": ["**/*.js", "types/**/*.d.ts"],
-  "exclude": ["node_modules", "coverage", "tests", "scripts", "evals", "vitest.config.js"]
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", "coverage"]
 }

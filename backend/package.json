@@ -2,24 +2,24 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-  "main": "server.js",
+  "main": "server.ts",
   "scripts": {
-    "dev": "node server.js",
-    "start": "node server.js",
-    "test": "node scripts/check-syntax.js && tsc -p . && vitest run",
-    "test:evals": "vitest run tests/evals.test.js",
-    "test:evals:live": "node scripts/live-eval.js",
-    "eval:models": "node scripts/model-eval.js",
-    "typecheck": "tsc -p ."
+    "dev": "node --watch server.ts",
+    "start": "node server.ts",
+    "typecheck": "tsc -p .",
+    "test": "tsc -p . && vitest run",
+    "test:evals": "vitest run tests/evals.test.ts",
+    "test:evals:live": "node scripts/live-eval.ts",
+    "eval:models": "node scripts/model-eval.ts"
   },
   "engines": {
-    "node": ">=22 <25",
+    "node": ">=22.18 <25",
     "npm": ">=10"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
     "axios": "^1.16.0",
     "cors": "^2.8.6",
