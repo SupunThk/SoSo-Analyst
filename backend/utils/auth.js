@@ -31,15 +31,23 @@ const createNonce = () => crypto.randomBytes(16).toString('hex');
 
 const createSessionToken = () => crypto.randomBytes(32).toString('base64url');
 
-const buildLoginMessage = (walletAddress, nonce) =>
-  [
-    'Sign in to SoSo Analyst.',
+const buildLoginMessage = (walletAddress, nonce, issuedAt = new Date().toISOString(), reqDomain = 'soso-analyst.com', reqUri = 'https://soso-analyst.com') => {
+  const statement = 'Sign in to SoSo Analyst. This signature proves wallet ownership and does not authorize a blockchain transaction.';
+  const chainId = 1;
+  
+  return [
+    `${reqDomain} wants you to sign in with your Ethereum account:`,
+    `${getWalletAddress(walletAddress)}`,
     '',
-    `Wallet: ${getWalletAddress(walletAddress)}`,
+    statement,
+    '',
+    `URI: ${reqUri}`,
+    `Version: 1`,
+    `Chain ID: ${chainId}`,
     `Nonce: ${nonce}`,
-    '',
-    'This signature proves wallet ownership and does not authorize a blockchain transaction.'
+    `Issued At: ${issuedAt}`
   ].join('\n');
+};
 
 const getBearerToken = (req) => {
   const header = req.get('authorization') || '';
@@ -70,8 +78,21 @@ const findSessionForRequest = async (req) => {
   return {
     user,
     walletAddress: user.publicWalletAddress,
-    walletHash: user.walletAddress
+    walletHash: user.walletAddress,
+    token
   };
+};
+
+const revokeSessionForRequest = async (req) => {
+  const token = getBearerToken(req);
+  if (!token) return false;
+  
+  const result = await User.updateOne(
+    { sessionTokenHash: hashValue(token) },
+    { $unset: { sessionTokenHash: 1, sessionExpiresAt: 1 } }
+  );
+  
+  return result.modifiedCount > 0;
 };
 
 const requireSession = async (req, res, next) => {
@@ -99,5 +120,6 @@ module.exports = {
   getWalletAddress,
   hashValue,
   hashWallet,
-  requireSession
+  requireSession,
+  revokeSessionForRequest
 };

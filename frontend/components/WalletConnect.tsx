@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useRef } from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount, useSignMessage } from 'wagmi';
 import { WalletConnection } from '@/lib/types';
@@ -15,13 +15,21 @@ interface WalletConnectProps {
 const WalletConnect: React.FC<WalletConnectProps> = ({ onConnect, walletAddress }) => {
   const { address, connector } = useAccount();
   const { signMessageAsync } = useSignMessage();
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
+
   const [showDisclaimer, setShowDisclaimer] = useState(false);
   const authenticatedWalletMatches =
     walletAddress && address && walletAddress.toLowerCase() === address.toLowerCase();
 
+  const isAuthenticatingRef = useRef(false);
+  const [isAuthenticatingState, setIsAuthenticatingState] = useState(false);
+
+  const setIsAuthenticating = (val: boolean) => {
+    isAuthenticatingRef.current = val;
+    setIsAuthenticatingState(val);
+  };
+
   const executeSignIn = useCallback(async () => {
-    if (!address || !connector || isAuthenticating) {
+    if (!address || !connector || isAuthenticatingRef.current) {
       return;
     }
 
@@ -46,7 +54,7 @@ const WalletConnect: React.FC<WalletConnectProps> = ({ onConnect, walletAddress 
     } finally {
       setIsAuthenticating(false);
     }
-  }, [address, connector, isAuthenticating, onConnect, signMessageAsync]);
+  }, [address, connector, onConnect, signMessageAsync]);
 
   const handleSignIn = useCallback(() => {
     setShowDisclaimer(true);
@@ -125,13 +133,13 @@ const WalletConnect: React.FC<WalletConnectProps> = ({ onConnect, walletAddress 
                 <button
                   type="button"
                   onClick={handleSignIn}
-                  disabled={isAuthenticating || !address || !connector}
+                  disabled={isAuthenticatingState || !address || !connector}
                   className="flex items-center justify-center px-2.5 sm:px-4 py-1.5 bg-accent-green text-[#030503] hover:bg-accent-green/92 transition-all rounded-md cursor-pointer shadow-[0_0_22px_rgba(0,255,157,0.18)] hover:shadow-[0_0_32px_rgba(0,255,157,0.28)] disabled:opacity-60 disabled:cursor-wait"
                   aria-label="Sign in with connected wallet"
                   title="Sign in with connected wallet"
                 >
                   <span className="text-[9px] sm:text-[10px] font-mono font-bold tracking-widest uppercase">
-                    {isAuthenticating ? 'SIGNING...' : 'SIGN IN'}
+                    {isAuthenticatingState ? 'SIGNING...' : 'SIGN IN'}
                   </span>
                 </button>
               </div>

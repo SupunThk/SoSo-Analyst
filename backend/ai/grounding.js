@@ -8,6 +8,9 @@ const DEFAULT_EMPTY_ANSWERS = new Set([
 
 const SPECIFIC_QUESTION_PATTERN = /\b(which|what|who|most|top|best|worst|biggest|highest|lowest|how much|what price|name)\b/i;
 const HOT_NEWS_STORY_PATTERN = /\b(hot(?:test)? (?:\w+ )*news(?: stories)?|crypto news(?: today)?|latest (?:crypto )?news(?: stories)?|news stories)\b/i;
+const ACTIONABLE_LANGUAGE_PATTERN = /\b(buy|sell|long|short|entry|exit|position|accumulate|fade|bid|offer)\b/i;
+const RISK_CAVEAT_PATTERN = /\b(risk|caution|invalidat|disclaimer|not financial advice|verify|caveat|warning)\b/i;
+const BOLD_DATA_PATTERN = /\*\*[^*]*(?:\$[\d,]+\.?\d*|[+-]?\d+\.?\d*%|#\d+)[^*]*\*\*/;
 
 const VAGUE_ANSWER_PHRASES = [
   'no clear directional bias',
@@ -55,7 +58,7 @@ const buildHotNewsFallback = (titles) => [
 
 const hasHotNewsReportShape = (answer) => {
   const normalized = String(answer || '').toLowerCase();
-  const numberedItems = String(answer || '').match(/(?:^|\n)\s*\d+[\).]\s+/g) || [];
+  const numberedItems = String(answer || '').match(/(?:^|\n)\s*\d+[)\.]\s+/g) || [];
   const storyMarkers = [
     'headline',
     'why it matters',
@@ -101,6 +104,57 @@ const isVagueAnswer = (answer) => {
   return matchCount >= 2;
 };
 
+// Check if the answer contains bold data citations (prices, percentages, rankings)
+const hasCitationDensity = (answer) => {
+  if (String(answer || '').length < 300) return true; // Short answers get a pass
+  return BOLD_DATA_PATTERN.test(answer);
+};
+
+// Build a partial failure note listing which data sources failed
+const buildPartialFailureNote = (toolCalls) => {
+  const failedTools = toolCalls.filter((tool) => tool.status === 'error');
+  const successfulTools = toolCalls.filter((tool) => tool.status === 'success');
+  if (!failedTools.length || !successfulTools.length) return null;
+
+  const TOOL_SOURCE_MAP = {
+    get_market_intelligence: 'Market Intelligence',
+    get_token_intelligence: 'Token Intelligence',
+    get_asset_snapshot: 'Asset Snapshot',
+    get_asset_price_history: 'Price History',
+    get_asset_news_brief: 'Asset News',
+    get_hot_news_digest: 'Hot News',
+    get_etf_flow_brief: 'ETF Flows',
+    get_macro_crypto_calendar: 'Macro Calendar',
+    get_macro_event_history: 'Macro History',
+    get_sector_spotlight: 'Sector Spotlight',
+    get_token_economics: 'Tokenomics',
+    get_trading_pairs: 'Trading Pairs',
+    get_index_overview: 'Index Overview',
+    get_wallet_holdings: 'Wallet Holdings',
+    get_sodex_markets: 'SoDEX Markets',
+    get_sodex_orderbook: 'SoDEX Order Book',
+    get_sodex_analytics: 'SoDEX Analytics',
+    get_crypto_equities_watchlist: 'Crypto Equities',
+    get_btc_treasury_brief: 'BTC Treasury',
+    get_btc_purchase_history_brief: 'BTC Purchase History',
+    get_fundraising_overview: 'Fundraising',
+    compare_assets: 'Asset Comparison'
+  };
+
+  const failedNames = failedTools
+    .map((tool) => TOOL_SOURCE_MAP[tool.name] || tool.name.replace(/^get_/, '').replace(/_/g, ' '))
+    .join(', ');
+
+  return `\n\n---\n*Note: ${failedNames} data was unavailable. Analysis is based on ${successfulTools.length} of ${toolCalls.length} data sources.*`;
+};
+
+// Check if the answer has actionable language without appropriate risk caveats
+const needsRiskDisclaimer = (answer) => {
+  return ACTIONABLE_LANGUAGE_PATTERN.test(answer) && !RISK_CAVEAT_PATTERN.test(answer);
+};
+
+const RISK_DISCLAIMER = '\n\n---\n*⚠️ This is analysis, not financial advice. Always verify data independently and manage risk before acting.*';
+
 const applyGroundingGuard = ({ answer, toolCalls = [], userMessage = '' }) => {
   const trimmedAnswer = String(answer || '').trim();
   const successfulTools = toolCalls.filter((tool) => tool.status === 'success');
@@ -142,7 +196,26 @@ const applyGroundingGuard = ({ answer, toolCalls = [], userMessage = '' }) => {
     return `${trimmedAnswer}\n\n---\n*Note: The available data may not directly answer your specific question. Try asking about a specific asset (e.g., "Which of BTC, ETH, SOL gained the most today?") or ask for "SoDEX top gainers" for exchange-specific data.*`;
   }
 
-  return trimmedAnswer;
+  // Build the final answer with optional post-processing notes
+  let finalAnswer = trimmedAnswer;
+
+  // Partial tool failure transparency
+  const partialNote = buildPartialFailureNote(toolCalls);
+  if (partialNote) {
+    finalAnswer += partialNote;
+  }
+
+  // Citation density check: flag answers that lack bold data points
+  if (!hasCitationDensity(finalAnswer) && successfulTools.length > 0) {
+    finalAnswer += '\n\n---\n*Note: This response may lack specific data citations. Ask a follow-up for exact numbers, prices, or percentages.*';
+  }
+
+  // Risk-aware grounding: append disclaimer if answer has actionable language without caveats
+  if (needsRiskDisclaimer(finalAnswer)) {
+    finalAnswer += RISK_DISCLAIMER;
+  }
+
+  return finalAnswer;
 };
 
 module.exports = {

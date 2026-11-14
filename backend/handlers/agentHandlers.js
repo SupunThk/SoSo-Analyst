@@ -160,10 +160,6 @@ const trimConversationHistory = (history, maxTurns = 8) => {
 
   return [
     ...first,
-    {
-      role: 'user',
-      parts: [{ text: `[${history.length - first.length - recent.length} earlier messages omitted for context efficiency]` }]
-    },
     ...recent
   ];
 };
@@ -349,35 +345,46 @@ const runAgentLoop = async (contents, options = {}) => {
 
       // Dedup check: have we already called this exact tool + args?
       const cacheKey = makeToolCacheKey(name, args);
+      // Entries may be in-flight promises: calls in this batch run in parallel, so the
+      // cache is filled synchronously with the pending execution to catch same-batch duplicates.
       const cachedResult = toolCallDedup.get(cacheKey);
       if (cachedResult) {
         dedupeHits++;
+        const settled = await cachedResult;
         return {
           call,
-          executeResult: cachedResult.resultData,
-          compressed: cachedResult.compressed,
+          executeResult: settled.resultData,
+          compressed: settled.compressed,
           cached: true
         };
       }
 
-      onToolStart?.({ name, args, iteration });
+      const pending = (async () => {
+        onToolStart?.({ name, args, iteration });
 
-      let executeResult;
-      try {
-        executeResult = await executeTool(name, args, toolContext);
-      } catch (err) {
-        executeResult = { error: true, code: err.code || 'execution_failed', message: err.message };
-      }
+        let resultData;
+        try {
+          resultData = await executeTool(name, args, toolContext);
+        } catch (err) {
+          resultData = {
+            error: true,
+            status: 'error',
+            code: err.code || 'execution_failed',
+            message: err.message,
+            preview: `Tool failed: ${err.message}`
+          };
+        }
 
-      const compressed = compressToolPayloadForGemini(executeResult);
+        return { resultData, compressed: compressToolPayloadForGemini(resultData) };
+      })();
 
-      // Cache for dedup
-      toolCallDedup.set(cacheKey, { resultData: executeResult, compressed });
+      toolCallDedup.set(cacheKey, pending);
+      const settled = await pending;
 
       return {
         call,
-        executeResult,
-        compressed,
+        executeResult: settled.resultData,
+        compressed: settled.compressed,
         cached: false
       };
     }));
@@ -449,7 +456,7 @@ const runAgentLoop = async (contents, options = {}) => {
     budgetUsed: totalToolInvocations,
     budgetMax: budget.max,
     dedupeHits,
-    zeroToolSuccess: toolCallsMade.length > 0 && toolCallsMade.every((tc) => tc.status === 'error')
+    allToolsFailed: toolCallsMade.length > 0 && toolCallsMade.every((tc) => tc.status === 'error')
   });
 
   return result;
@@ -477,17 +484,20 @@ const handleChat = async (req, res) => {
   });
   if (!payload) return;
 
-  const walletContext = await getVerifiedWalletContext(req, payload.walletAddress);
-  const toolAllowlist = await getToolAllowlist(payload.userMessage);
-
   try {
+    const walletContext = await getVerifiedWalletContext(req, payload.walletAddress);
+    const toolAllowlist = await getToolAllowlist(payload.userMessage);
+
     const preload = await preloadPortfolioHoldings(payload, walletContext);
     const contents = await buildContents(
       sanitizeConversationHistory(payload.conversationHistory),
       payload.userMessage,
       walletContext.verifiedWalletAddress,
       preload.extraContext,
-      { preloadedTools: preload.initialToolResults.map((item) => item.name) }
+      { 
+        preloadedTools: preload.initialToolResults.map((item) => item.name),
+        routing: toolAllowlist.routing
+      }
     );
     const result = await runAgentLoop(contents, {
       toolContext: { walletAddress: walletContext.verifiedWalletAddress },
@@ -548,10 +558,10 @@ const handleChatStream = async (req, res) => {
   });
   if (!payload) return;
 
-  const walletContext = await getVerifiedWalletContext(req, payload.walletAddress);
-  const toolAllowlist = await getToolAllowlist(payload.userMessage);
-
   try {
+    const walletContext = await getVerifiedWalletContext(req, payload.walletAddress);
+    const toolAllowlist = await getToolAllowlist(payload.userMessage);
+
     send('status', { phase: 'thinking', message: 'Analyzing your query...' });
 
     const preload = await preloadPortfolioHoldings(payload, walletContext, {
@@ -563,7 +573,10 @@ const handleChatStream = async (req, res) => {
       payload.userMessage,
       walletContext.verifiedWalletAddress,
       preload.extraContext,
-      { preloadedTools: preload.initialToolResults.map((item) => item.name) }
+      { 
+        preloadedTools: preload.initialToolResults.map((item) => item.name),
+        routing: toolAllowlist.routing
+      }
     );
     const result = await runAgentLoop(contents, {
       toolContext: { walletAddress: walletContext.verifiedWalletAddress },
@@ -608,16 +621,11 @@ const saveStreamedChat = async (req, payload, walletContext, result) => {
   }
 
   try {
-    const session = walletContext.session || await findSessionForRequest(req);
-    if (!session || session.walletHash !== hashWallet(normalizedWalletAddress)) {
-      console.warn(`Skipped saving chat ${payload.chatId}: missing or mismatched wallet session.`);
-      return;
-    }
-
+    const walletHash = hashWallet(normalizedWalletAddress);
     const updatedChat = await Chat.findOneAndUpdate(
       {
         _id: payload.chatId,
-        walletAddress: session.walletHash
+        walletAddress: walletHash
       },
       {
         $push: {
@@ -661,11 +669,10 @@ const handleTicker = async (req, res) => {
           );
         }).filter(Boolean);
 
-        const snapshots = [];
-        for (const asset of tickerAssets) {
-          snapshots.push(await fetchTickerSnapshot(asset));
-          await sleep(150);
-        }
+        const snapshots = await Promise.all(tickerAssets.map(async (asset, index) => {
+          await sleep(index * 150);
+          return fetchTickerSnapshot(asset);
+        }));
 
         tickerCache = { data: snapshots, expiresAt: Date.now() + 60000 };
         return snapshots;

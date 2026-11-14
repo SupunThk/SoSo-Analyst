@@ -23,7 +23,9 @@ const walletAddressSchema = z.string().refine((value) => Boolean(getWalletAddres
 });
 
 const nonceSchema = z.object({
-  walletAddress: walletAddressSchema
+  walletAddress: walletAddressSchema,
+  domain: z.string().optional(),
+  uri: z.string().optional()
 });
 
 const verifySchema = z.object({
@@ -81,31 +83,41 @@ router.post('/auth/nonce', async (req, res) => {
   try {
     const walletAddress = getWalletAddress(data.walletAddress);
     const walletHash = hashWallet(walletAddress);
-    const now = new Date();
-    const existingUser = await User.findOne({ walletAddress: walletHash });
-    let nonce = existingUser?.loginNonce;
-    let expiresAt = existingUser?.loginNonceExpiresAt;
+    
+    const nonce = createNonce();
+    const expiresAt = new Date(Date.now() + NONCE_TTL_MS);
+    const issuedAt = new Date().toISOString();
+    
+    const reqOrigin = req.get('origin') || process.env.CLIENT_URL || 'https://soso-analyst.com';
+    let fallbackDomain = 'soso-analyst.com';
+    let fallbackUri = 'https://soso-analyst.com';
+    try {
+      const url = new URL(reqOrigin);
+      fallbackDomain = url.host;
+      fallbackUri = url.origin;
+    } catch(e) {}
 
-    if (!nonce || !expiresAt || expiresAt <= now) {
-      nonce = createNonce();
-      expiresAt = new Date(Date.now() + NONCE_TTL_MS);
+    const domain = data.domain || fallbackDomain;
+    const uri = data.uri || fallbackUri;
+    
+    const loginMessage = buildLoginMessage(walletAddress, nonce, issuedAt, domain, uri);
 
-      await User.findOneAndUpdate(
-        { walletAddress: walletHash },
-        {
-          $set: {
-            publicWalletAddress: walletAddress,
-            loginNonce: nonce,
-            loginNonceExpiresAt: expiresAt
-          }
-        },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-      );
-    }
-
-    res.json({
+    await User.findOneAndUpdate(
+      { walletAddress: walletHash },
+      {
+        $set: {
+          publicWalletAddress: walletAddress,
+          loginNonce: nonce,
+          loginMessage: loginMessage,
+          loginNonceExpiresAt: expiresAt
+        }
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    
+    return res.json({
       walletAddress,
-      message: buildLoginMessage(walletAddress, nonce),
+      message: loginMessage,
       expiresAt: expiresAt.toISOString()
     });
   } catch (err) {
@@ -127,11 +139,11 @@ router.post('/auth/verify', async (req, res) => {
     const walletHash = hashWallet(walletAddress);
     const user = await User.findOne({ walletAddress: walletHash });
 
-    if (!user?.loginNonce || !user.loginNonceExpiresAt || user.loginNonceExpiresAt <= new Date()) {
+    if (!user?.loginNonce || !user.loginNonceExpiresAt || user.loginNonceExpiresAt <= new Date() || !user.loginMessage) {
       return res.status(400).json({ error: 'Login nonce is missing or expired.' });
     }
 
-    const message = buildLoginMessage(walletAddress, user.loginNonce);
+    const message = user.loginMessage;
     const recoveredAddress = ethers.verifyMessage(message, data.signature);
 
     if (ethers.getAddress(recoveredAddress) !== walletAddress) {
@@ -157,6 +169,7 @@ router.post('/auth/verify', async (req, res) => {
         },
         $unset: {
           loginNonce: '',
+          loginMessage: '',
           loginNonceExpiresAt: ''
         }
       },
@@ -176,6 +189,17 @@ router.post('/auth/verify', async (req, res) => {
   } catch (err) {
     console.error('Verify error:', err);
     res.status(401).json({ error: 'Wallet signature verification failed.' });
+  }
+});
+
+router.post('/auth/logout', requireSession, async (req, res) => {
+  if (!ensureDatabase(res)) return;
+  try {
+    const success = await require('../utils/auth').revokeSessionForRequest(req);
+    res.json({ success });
+  } catch (err) {
+    console.error('Logout error:', err);
+    res.status(500).json({ error: 'Failed to logout.' });
   }
 });
 

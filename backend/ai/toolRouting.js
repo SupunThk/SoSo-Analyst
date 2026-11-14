@@ -18,7 +18,7 @@ const ROUTING_RULES = [
   },
   {
     intent: 'compare',
-    pattern: /\b(compare|vs|versus)\b/i,
+    pattern: /\b(compare|vs|versus|side[- ]by[- ]side)\b/i,
     tools: ['compare_assets'],
     budget: 'simple',
     followUp: 'Use a table and compare exact fields returned by the comparison result before writing an interpretation.'
@@ -32,14 +32,14 @@ const ROUTING_RULES = [
   },
   {
     intent: 'market_intelligence',
-    pattern: /\b(regime|rotation|rotating|opportunit|scanner|alert|watchlist)\b/i,
+    pattern: /\b(regime|rotation|rotating|opportunit|scanner|alert|watchlist|risk[- ]?on|risk[- ]?off|keep an eye on|monitor)\b/i,
     tools: ['get_market_intelligence'],
     budget: 'simple',
     followUp: 'Lead with the computed regime, then cite rotation leaders/laggards, active alerts, and opportunity rows from the returned intelligence object.'
   },
   {
     intent: 'market_overview',
-    pattern: /\b(market overview|what(?:'s| is) happening|hot(?:test)? (?:\w+ )*news|crypto news today|full market|market update|latest (?:crypto |market )?news|news stories)\b/i,
+    pattern: /\b(market overview|market status|(?:status|state) of the (?:crypto )?market|what(?:'s| is) happening|hot(?:test)? (?:\w+ )*news|crypto news today|full market|market update|latest (?:crypto |market )?news|news stories)\b/i,
     tools: ['get_market_intelligence', 'get_hot_news_digest', 'get_macro_crypto_calendar'],
     budget: 'market',
     followUp: 'Separate market price, sector, news, and macro evidence; avoid a single broad sentiment paragraph.'
@@ -151,7 +151,7 @@ const ROUTING_RULES = [
   },
   {
     intent: 'sodex_analytics',
-    pattern: /\b(sodex)\b.*\b(analytics?|volume|traders?|activity|gainers?|losers?|stats?|statistics)\b|\b(analytics?|volume|traders?|activity|gainers?|losers?|stats?|statistics)\b.*\b(sodex)\b/i,
+    pattern: /\b(sodex)\b.*\b(analytics?|volume|traders?|activity|gainers?|losers?|stats?|statistics|funding rates?)\b|\b(analytics?|volume|traders?|activity|gainers?|losers?|stats?|statistics|funding rates?)\b.*\b(sodex)\b/i,
     tools: ['get_sodex_analytics'],
     budget: 'simple',
     followUp: 'Report the top traded pairs, top gainers, top losers, tightest spreads, and total exchange volume. Name specific tokens and their percentage moves.'
@@ -171,8 +171,15 @@ const ROUTING_RULES = [
     followUp: 'Report returned spot/perps market names and ticker values; do not discuss trade execution.'
   },
   {
+    intent: 'altcoin_overview',
+    pattern: /\b(alt ?coins?|alts|altseason)\b/i,
+    tools: ['get_market_intelligence', 'get_sector_spotlight'],
+    budget: 'standard',
+    followUp: 'Use market-intelligence breadth/rotation and sector spotlight rows to describe altcoin performance relative to BTC.'
+  },
+  {
     intent: 'asset_snapshot',
-    pattern: /\b(price|quote|market cap|volume|doing)\b/i,
+    pattern: /\b(price|quote|market cap|volume|doing|dominance)\b/i,
     tools: ['get_asset_snapshot'],
     budget: 'simple',
     followUp: 'Answer with exact price, change, market cap, and volume fields when available.'
@@ -240,6 +247,7 @@ const REPORT_SHAPES = {
   sodex_analytics: 'SoDEX analytics report: total volume/pairs, most traded pairs, top gainers, top losers, tightest spreads, and exchange-scope caveat.',
   sodex_orderbook: 'Order book report: bid/ask, spread, depth levels, liquidity interpretation, and execution caveat. Do not invent trade advice.',
   sodex_markets: 'SoDEX markets report: active spot/perps markets, ticker values, notable volume/move rows, and source scope.',
+  altcoin_overview: 'Altcoin report: breadth vs BTC, leading and lagging sectors, notable altcoin movers from returned rows, and rotation readthrough.',
   asset_snapshot: 'Asset snapshot report: exact price, 24h change, market cap, 24h volume, rank if available, short context, and data caveat.'
 };
 
@@ -305,13 +313,14 @@ const inferToolRouting = async (message = '') => {
 
   let matchedIntents = [];
 
-  try {
+  // No key (tests, local runs without .env): skip the LLM and use deterministic regex routing.
+  if (process.env.GEMINI_API_KEY) try {
     const prompt = `Classify the following user query into one or more intents.
 Available intents: ${ROUTING_RULES.map(r => r.intent).join(', ')}.
 Output JSON in the exact format: { "intents": ["intent1", "intent2"] }. If none match, output [].
 User Query: "${text}"`;
 
-    const response = await postGeminiGenerateContent([{ role: 'user', parts: [{ text: prompt }] }], { responseMimeType: 'application/json' });
+    const response = await postGeminiGenerateContent([{ role: 'user', parts: [{ text: prompt }] }], { responseMimeType: 'application/json', lightweight: true });
     const answer = response?.candidates?.[0]?.content?.parts?.[0]?.text;
     if (answer) {
       const parsed = JSON.parse(answer);
@@ -368,8 +377,10 @@ const getToolAllowlist = async (userMessage) => {
   };
 };
 
-const buildToolRoutingContext = async (userMessage, { preloadedTools = [] } = {}) => {
-  const routing = await inferToolRouting(userMessage);
+const buildToolRoutingContext = (userMessage, { preloadedTools = [], routing } = {}) => {
+  if (!routing) {
+    throw new Error('Routing must be provided to buildToolRoutingContext');
+  }
   const preloaded = new Set(preloadedTools);
   const toolsToCall = routing.tools.filter((tool) => !preloaded.has(tool));
 

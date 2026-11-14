@@ -13,12 +13,34 @@ test('has title', async ({ page }) => {
   await expect(page).toHaveTitle(/SoSo Analyst/);
 });
 
-test('can type in terminal input', async ({ page }) => {
+test('can type in terminal input and receive streamed response', async ({ page }) => {
   await page.goto('/');
 
   await expect(page.locator('main')).toBeVisible();
-  await page.getByPlaceholder('ENTER COMMAND OR QUERY...').fill('show market regime');
-  await expect(page.getByPlaceholder('ENTER COMMAND OR QUERY...')).toHaveValue('show market regime');
+  
+  // Route stream request to mock SSE response
+  await page.route('**/api/agent/chat/stream', async (route) => {
+    const streamContent = [
+      'event: chunk\ndata: {"text": "Bull market"}\n\n',
+      'event: tool_done\ndata: {"name": "get_market_intelligence", "result": "Regime: Bull", "status": "success"}\n\n',
+      'event: chunk\ndata: {"text": " confirmed."}\n\n',
+      'event: done\ndata: {"answer": "Bull market confirmed.", "toolCalls": [{"name": "get_market_intelligence"}]}\n\n'
+    ].join('');
+    
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      body: streamContent,
+    });
+  });
+
+  const input = page.getByPlaceholder('ENTER COMMAND OR QUERY...');
+  await input.fill('show market regime');
+  await input.press('Enter');
+
+  // Verify streamed response appears
+  await expect(page.getByText('Bull market confirmed.')).toBeVisible();
+  await expect(page.getByText('get_market_intelligence')).toBeVisible();
 });
 
 test('does not show saved history from stored auth before wallet is connected', async ({ page }) => {

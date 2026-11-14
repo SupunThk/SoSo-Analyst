@@ -278,38 +278,38 @@ const testChatRoutesWithMockedDatabase = async () => {
   }
 };
 
-const testChatNonceReusesUnexpiredNonce = async () => {
+const testChatNonceIssuesFreshSignedMessage = async () => {
+  // Each nonce request issues a new nonce and stores the exact message the wallet must sign,
+  // so a stale (even unexpired) nonce is never replayed.
   const wallet = ethers.Wallet.createRandom().address;
-  const nonce = 'existing-nonce';
-  const expiresAt = new Date(Date.now() + 60000);
+  let stored = null;
 
   mongoose.connection.readyState = 1;
-  User.findOne = async (query) => {
-    assert.equal(query.walletAddress, hashWallet(wallet));
-    return {
-      publicWalletAddress: wallet,
-      walletAddress: hashWallet(wallet),
-      loginNonce: nonce,
-      loginNonceExpiresAt: expiresAt
-    };
+  User.findOne = async () => {
+    throw new Error('Nonce issuance should not reuse an existing nonce');
   };
-  User.findOneAndUpdate = async () => {
-    throw new Error('Existing unexpired nonce should be reused');
+  User.findOneAndUpdate = async (query, update) => {
+    stored = { query, update };
+    return {};
   };
 
   const server = await startServer('/api/chats', require('../routes/chats'));
   try {
     const response = await fetch(urlFor(server, '/api/chats/auth/nonce'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Origin: 'https://app.example.com' },
       body: JSON.stringify({ walletAddress: wallet.toLowerCase() })
     });
     const body = await response.json();
 
     assert.equal(response.status, 200);
     assert.equal(body.walletAddress, wallet);
-    assert.equal(body.message, buildLoginMessage(wallet, nonce));
-    assert.equal(body.expiresAt, expiresAt.toISOString());
+    assert.equal(stored.query.walletAddress, hashWallet(wallet));
+    assert.ok(stored.update.$set.loginNonce);
+    assert.equal(stored.update.$set.loginMessage, body.message);
+    assert.ok(body.message.includes(wallet));
+    assert.ok(body.message.includes('app.example.com'));
+    assert.equal(body.expiresAt, stored.update.$set.loginNonceExpiresAt.toISOString());
   } finally {
     await closeServer(server);
   }
@@ -447,7 +447,7 @@ const testSodexProfileRouteBuildsRealDashboard = async () => {
     await testAgentStreamInjectsVerifiedWallet();
     await testAgentStreamRequiresVerifiedWalletForPortfolio();
     await testChatRoutesWithMockedDatabase();
-    await testChatNonceReusesUnexpiredNonce();
+    await testChatNonceIssuesFreshSignedMessage();
     await testSodexProfileRouteBuildsRealDashboard();
     await testSosoUpstreamErrorHandling();
     console.log('route integration tests passed');

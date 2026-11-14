@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode, useLayoutEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { AuthSession, WalletConnection } from '@/lib/types';
 import {
@@ -35,15 +35,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     wasConnectedRef.current = isConnected;
   }, [isConnected, authSession]);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const session = loadStoredAuthSession();
-      if (!session) return;
+  const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
+  useIsomorphicLayoutEffect(() => {
+    const session = loadStoredAuthSession();
+    if (session) {
       setAuthSession(session);
-    }, 0);
-
-    return () => window.clearTimeout(timer);
+    }
   }, []);
 
   const handleWalletConnect = useCallback(async (

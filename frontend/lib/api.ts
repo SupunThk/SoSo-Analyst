@@ -239,6 +239,9 @@ export async function sendMessageStream(
 
     if (!res.ok) {
       const errorData = await res.json().catch(() => null);
+      if (res.status === 401) {
+        throw new UnauthorizedError(getErrorMessage(errorData, 'Valid wallet session is required.'));
+      }
       throw new Error(getErrorMessage(errorData, `Server error (${res.status})`));
     }
 
@@ -416,10 +419,12 @@ export async function fetchTokenIntelligence(asset: string, signal?: AbortSignal
 // Auth and Chat History API
 export async function requestWalletNonce(walletAddress: string, signal?: AbortSignal): Promise<AuthNonceResponse> {
   try {
+    const domain = typeof window !== 'undefined' ? window.location.host : undefined;
+    const uri = typeof window !== 'undefined' ? window.location.origin : undefined;
     const res = await fetch(apiUrl('/api/chats/auth/nonce'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ walletAddress }),
+      body: JSON.stringify({ walletAddress, domain, uri }),
       signal
     });
     return readJson<AuthNonceResponse>(res);
@@ -556,13 +561,19 @@ export async function fetchSosoHotNews(signal?: AbortSignal): Promise<unknown> {
 
 export async function fetchSosoETFSummary(signal?: AbortSignal): Promise<SosoEtfSummary> {
   return readCachedRequest(etfSummaryCache, SOSO_CLIENT_CACHE_MS, async (s?: AbortSignal) => {
-    const res = await fetch(apiUrl('/api/soso/etfs/current-data-metrics'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'us-btc-spot' }),
-      signal: s
-    });
-    const btcRaw = await readJson<unknown>(res).catch(() => null);
+    let btcRaw: unknown = null;
+    try {
+      const btcRes = await fetch(apiUrl('/api/soso/etfs/current-data-metrics'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'us-btc-spot' }),
+        signal: s
+      });
+      btcRaw = await readJson<unknown>(btcRes);
+    } catch (err) {
+      if (isAbortError(err)) throw err;
+      console.error("Failed to fetch BTC ETF data:", err);
+    }
     
     let ethRaw: unknown = null;
     try {

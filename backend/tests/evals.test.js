@@ -45,8 +45,10 @@ const testToolRoutingContext = async () => {
   const routing = await inferToolRouting('Give me a BTC ETF flow brief');
   assert.deepEqual(routing.tools, ['get_etf_flow_brief', 'get_asset_snapshot']);
 
-  const context = await buildToolRoutingContext('Analyze my portfolio holdings', {
-    preloadedTools: ['get_wallet_holdings']
+  const contextRouting = await inferToolRouting('Analyze my portfolio holdings');
+  const context = buildToolRoutingContext('Analyze my portfolio holdings', {
+    preloadedTools: ['get_wallet_holdings'],
+    routing: contextRouting
   });
   const text = context.content.parts[0].text;
   assert.match(text, /DETERMINISTIC TOOL ROUTING HINT/);
@@ -56,30 +58,36 @@ const testToolRoutingContext = async () => {
   assert.match(text, /Tool budget: max/);
 
   // Single-tool intent with all preloaded should say "use the already available"
-  const singleToolContext = await buildToolRoutingContext('What is BTC price?', {
-    preloadedTools: ['get_asset_snapshot']
+  const singleToolRouting = await inferToolRouting('What is BTC price?');
+  const singleToolContext = buildToolRoutingContext('What is BTC price?', {
+    preloadedTools: ['get_asset_snapshot'],
+    routing: singleToolRouting
   });
   const singleText = singleToolContext.content.parts[0].text;
   assert.match(singleText, /use the already available tool result/);
 
-  const hotNewsContext = await buildToolRoutingContext('What are the hottest crypto news stories right now?');
+  const hotNewsRouting = await inferToolRouting('What are the hottest crypto news stories right now?');
+  const hotNewsContext = buildToolRoutingContext('What are the hottest crypto news stories right now?', { routing: hotNewsRouting });
   const hotNewsText = hotNewsContext.content.parts[0].text;
   assert.match(hotNewsText, /REPORT SHAPE/);
   assert.match(hotNewsText, /Headline Tape/);
   assert.match(hotNewsText, /Do not lead with keyword sentiment scores/);
 
-  const sectorContext = await buildToolRoutingContext('What crypto sectors are trending? Show the sector spotlight.');
+  const sectorRouting = await inferToolRouting('What crypto sectors are trending? Show the sector spotlight.');
+  const sectorContext = buildToolRoutingContext('What crypto sectors are trending? Show the sector spotlight.', { routing: sectorRouting });
   const sectorText = sectorContext.content.parts[0].text;
   assert.match(sectorText, /Sector report/);
   assert.match(sectorText, /ranked sectors first/);
   assert.match(sectorText, /fallback scope/);
 
-  const etfContext = await buildToolRoutingContext('Show me the latest US Spot ETF flows for Bitcoin.');
+  const etfRouting = await inferToolRouting('Show me the latest US Spot ETF flows for Bitcoin.');
+  const etfContext = buildToolRoutingContext('Show me the latest US Spot ETF flows for Bitcoin.', { routing: etfRouting });
   const etfText = etfContext.content.parts[0].text;
   assert.match(etfText, /ETF flow report/);
   assert.match(etfText, /top fund details/);
 
-  const fundraisingContext = await buildToolRoutingContext('Show me recent crypto fundraising rounds and VC investments.');
+  const fundraisingRouting = await inferToolRouting('Show me recent crypto fundraising rounds and VC investments.');
+  const fundraisingContext = buildToolRoutingContext('Show me recent crypto fundraising rounds and VC investments.', { routing: fundraisingRouting });
   const fundraisingText = fundraisingContext.content.parts[0].text;
   assert.match(fundraisingText, /Fundraising report/);
   assert.match(fundraisingText, /project, amount, investors/);

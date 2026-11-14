@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import LiveTicker from '@/components/LiveTicker';
@@ -63,9 +63,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('keydown', handler);
   }, [handleClear, isManualOpen, isMobileSidebarOpen]);
 
+  const prevAuthRef = useRef({ wallet: walletAddress, token: authSession?.token });
+
   useEffect(() => {
-    if (walletAddress && authSession) {
-      loadChats(walletAddress, authSession.token, handleLogout);
+    const currentWallet = walletAddress;
+    const currentToken = authSession?.token;
+    
+    if (currentWallet && currentToken) {
+      loadChats(currentWallet, currentToken, handleLogout);
+      prevAuthRef.current = { wallet: currentWallet, token: currentToken };
+      return;
+    }
+
+    if (prevAuthRef.current.wallet === currentWallet && prevAuthRef.current.token === currentToken) {
       return;
     }
 
@@ -73,6 +83,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     setIsChatsLoading(false);
     setActiveChatId(null);
     clearChat();
+    prevAuthRef.current = { wallet: currentWallet, token: currentToken };
   }, [walletAddress, authSession, loadChats, handleLogout, setChats, setIsChatsLoading, setActiveChatId, clearChat]);
 
   const onWalletConnect = (conn: import('@/lib/types').WalletConnection) => handleWalletConnect(conn);
@@ -110,7 +121,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       {booting && <TerminalBoot onComplete={() => setBooting(false)} />}
-      <div className="h-screen h-[100dvh] w-screen max-w-[100vw] bg-background overflow-hidden font-sans matrix-grid text-text-primary">
+      <div className="h-screen h-[100dvh] w-screen max-w-[100vw] bg-background overflow-hidden font-sans matrix-grid text-text-primary flex flex-col">
       <main
         id="main-content"
         tabIndex={-1}

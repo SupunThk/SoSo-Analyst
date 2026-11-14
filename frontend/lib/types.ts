@@ -12,6 +12,7 @@ export interface Message {
   role: 'user' | 'assistant';
   content: string;
   toolCalls?: ToolCall[];
+  analysisSynthesis?: AnalysisSynthesis | null;
   feedback?: MessageFeedback | null;
   persistedIndex?: number;
   timestamp: Date;
@@ -92,6 +93,8 @@ export interface MarketRegime {
   label: string;
   score: number;
   confidence: number;
+  riskScore: number;
+  riskLevel: 'low' | 'moderate' | 'elevated' | 'high';
   breadthPct: number;
   broadAveragePct: number;
   dispersionPct: number;
@@ -133,6 +136,9 @@ export interface IntelligenceOpportunity {
   evidence: string[];
   risk: string;
   nextStep: string;
+  volatilityContext?: string | null;
+  liquidityRisk?: string | null;
+  correlationNote?: string | null;
 }
 
 export interface AlertTemplate {
@@ -239,6 +245,7 @@ export interface PersistedChatMessage {
   role: 'user' | 'assistant';
   content: string;
   toolCalls?: ToolCall[];
+  analysisSynthesis?: AnalysisSynthesis | null;
   feedback?: MessageFeedback | null;
   timestamp: string | Date;
 }

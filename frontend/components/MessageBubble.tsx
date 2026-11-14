@@ -161,10 +161,58 @@ const AnimatedMarkdown: React.FC<{ content: string; animate: boolean }> = ({ con
   );
 };
 
+const SYNTHESIS_BADGE_STYLES = {
+  emerald: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+  amber: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
+  red: 'bg-red-500/10 border-red-500/20 text-red-400',
+  slate: 'bg-slate-500/10 border-slate-500/20 text-slate-300',
+} as const;
+
+const SYNTHESIS_DOT_STYLES = {
+  emerald: 'bg-emerald-400',
+  amber: 'bg-amber-400',
+  red: 'bg-red-400',
+  slate: 'bg-slate-300',
+} as const;
+
+const formatSynthesisLabel = (label: string) =>
+  label
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const getSynthesisBadge = (analysis: Message['analysisSynthesis']) => {
+  const rawLabel = analysis?.overallLabel;
+  if (!rawLabel) return null;
+
+  const normalized = rawLabel.toLowerCase();
+  const riskScore = analysis.riskScore;
+  const isHighRisk =
+    normalized.includes('high_risk') ||
+    (typeof riskScore === 'number' && riskScore >= 70);
+
+  let tone: keyof typeof SYNTHESIS_BADGE_STYLES = 'amber';
+  if (normalized.includes('bearish') || normalized === 'risk-off') {
+    tone = 'red';
+  } else if (isHighRisk) {
+    tone = 'amber';
+  } else if (normalized.includes('bullish') || normalized === 'risk-on') {
+    tone = 'emerald';
+  } else if (normalized.includes('insufficient')) {
+    tone = 'slate';
+  }
+
+  return {
+    label: rawLabel.includes('_') ? formatSynthesisLabel(rawLabel) : rawLabel,
+    riskScore,
+    tone,
+  };
+};
+
 const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isThinking, statusText, canRate, onFeedback }) => {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const synthesisBadge = !isUser ? getSynthesisBadge(message.analysisSynthesis) : null;
 
   // Elapsed time counter for thinking state
   useEffect(() => {
@@ -244,6 +292,22 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isThinking, stat
             {message.toolCalls.map((tool, idx) => (
               <ToolCallBadge key={idx} tool={tool} />
             ))}
+          </div>
+        )}
+
+        {/* Risk Badge */}
+        {synthesisBadge && (
+          <div className="px-3 pt-3 pb-0 mb-0">
+            <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-sm border font-mono text-[10px] uppercase tracking-wider ${SYNTHESIS_BADGE_STYLES[synthesisBadge.tone]}`}>
+              <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${SYNTHESIS_DOT_STYLES[synthesisBadge.tone]}`} />
+              {synthesisBadge.label}
+              {typeof synthesisBadge.riskScore === 'number' && (
+                <>
+                  <span className="opacity-40">│</span>
+                  <span>Risk Score: {synthesisBadge.riskScore}/100</span>
+                </>
+              )}
+            </div>
           </div>
         )}
 

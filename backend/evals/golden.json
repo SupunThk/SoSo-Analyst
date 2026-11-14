@@ -162,5 +162,83 @@
     "expectedTools": ["get_market_intelligence", "get_macro_crypto_calendar"],
     "matchMode": "any",
     "expectedBudget": "standard"
+  },
+  {
+    "id": "altcoins-doing",
+    "query": "How are altcoins doing?",
+    "expectedTools": ["get_market_intelligence", "get_sector_spotlight"],
+    "intent": "altcoin_overview",
+    "matchMode": "any",
+    "expectedBudget": "standard"
+  },
+  {
+    "id": "watchlist-today",
+    "query": "What should I watch today?",
+    "expectedTools": ["get_market_intelligence", "get_hot_news_digest"],
+    "intent": "watchlist_today",
+    "matchMode": "any",
+    "expectedBudget": "standard"
+  },
+  {
+    "id": "out-of-scope-poem",
+    "query": "Write me a poem about crypto",
+    "expectedTools": [],
+    "intent": "reject",
+    "outOfScope": true
+  },
+  {
+    "id": "risk-on-off",
+    "query": "Is the market in risk-on or risk-off mode?",
+    "expectedTools": ["get_market_intelligence"],
+    "intent": "market_intelligence",
+    "expectedBudget": "simple"
+  },
+  {
+    "id": "sodex-funding-rate",
+    "query": "What's the funding rate on SoDEX?",
+    "expectedTools": ["get_sodex_analytics"],
+    "intent": "sodex_analytics",
+    "matchMode": "any",
+    "expectedBudget": "simple"
+  },
+  {
+    "id": "btc-dominance",
+    "query": "Tell me about Bitcoin's dominance",
+    "expectedTools": ["get_asset_snapshot"],
+    "intent": "asset_snapshot",
+    "matchMode": "any",
+    "expectedBudget": "simple"
+  },
+  {
+    "id": "btc-eth-side-by-side",
+    "query": "Show me BTC and ETH side by side",
+    "expectedTools": ["compare_assets"],
+    "intent": "compare",
+    "expectedBudget": "simple"
+  },
+  {
+    "id": "defi-index",
+    "query": "Give me the SoSo DeFi index performance",
+    "expectedTools": ["get_index_overview"],
+    "intent": "index_overview",
+    "matchMode": "any",
+    "expectedBudget": "standard"
+  },
+  {
+    "id": "crypto-market-status",
+    "query": "What is the status of the crypto market right now?",
+    "expectedTools": ["get_market_intelligence", "get_hot_news_digest"],
+    "intent": "market_overview",
+    "matchMode": "any",
+    "expectedBudget": "market"
+  },
+  {
+    "id": "what-to-monitor",
+    "query": "Which assets should I keep an eye on this week?",
+    "expectedTools": ["get_market_intelligence", "get_hot_news_digest"],
+    "intent": "watchlist_today",
+    "matchMode": "any",
+    "expectedBudget": "standard"
   }
 ]
+

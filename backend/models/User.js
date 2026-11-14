@@ -15,6 +15,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null,
   },
+  loginMessage: {
+    type: String,
+    default: null,
+  },
   loginNonceExpiresAt: {
     type: Date,
     default: null,

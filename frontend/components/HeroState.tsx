@@ -5,7 +5,8 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 
 import WalletConnect from '@/components/WalletConnect';
-import { WalletConnection } from '@/lib/types';
+import { WalletConnection, MarketRegime } from '@/lib/types';
+import { fetchMarketIntelligence } from '@/lib/api';
 
 const DEFAULT_HERO_QUERIES = [
   { icon: '📊', label: 'Market Overview', text: 'Give me a full market overview report - BTC price, top movers, sector trends, news, macro calendar, and strategic outlook.' },
@@ -21,6 +22,20 @@ const DEFAULT_MOCK_PROMPTS = [
   'Give me a ranked sector rotation report',
 ];
 
+const REGIME_COLORS: Record<string, { bg: string; text: string; glow: string }> = {
+  'Risk-On': { bg: 'bg-emerald-500/15', text: 'text-emerald-400', glow: 'shadow-[0_0_12px_rgba(16,185,129,0.2)]' },
+  'Risk-Off': { bg: 'bg-red-500/15', text: 'text-red-400', glow: 'shadow-[0_0_12px_rgba(239,68,68,0.2)]' },
+  'Rotation': { bg: 'bg-amber-500/15', text: 'text-amber-400', glow: 'shadow-[0_0_12px_rgba(245,158,11,0.2)]' },
+  'Chop': { bg: 'bg-slate-400/15', text: 'text-slate-400', glow: 'shadow-[0_0_12px_rgba(148,163,184,0.15)]' },
+};
+
+const RISK_COLORS: Record<string, { dot: string; label: string }> = {
+  low: { dot: 'bg-emerald-400', label: 'Low Risk' },
+  moderate: { dot: 'bg-amber-400', label: 'Moderate' },
+  elevated: { dot: 'bg-orange-400', label: 'Elevated' },
+  high: { dot: 'bg-red-400', label: 'High Risk' },
+};
+
 interface HeroStateProps {
   onRunQuery: (query: string) => void;
   onOpenManual: () => void;
@@ -32,6 +47,18 @@ const HeroState: React.FC<HeroStateProps> = ({ onRunQuery, onConnectWallet, wall
   const [promptIndex, setPromptIndex] = useState(0);
   const [typedText, setTypedText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [regime, setRegime] = useState<MarketRegime | null>(null);
+
+  // Fetch market regime on mount
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchMarketIntelligence(controller.signal)
+      .then((data) => {
+        if (data?.regime) setRegime(data.regime);
+      })
+      .catch(() => { /* silently ignore — hero still works without regime */ });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const currentPrompt = DEFAULT_MOCK_PROMPTS[promptIndex];
@@ -93,8 +120,37 @@ const HeroState: React.FC<HeroStateProps> = ({ onRunQuery, onConnectWallet, wall
           </p>
         </div>
 
+        {/* ── Market Regime Indicator ── */}
+        {regime && (() => {
+          const regimeStyle = REGIME_COLORS[regime.label] || REGIME_COLORS['Chop'];
+          const riskStyle = RISK_COLORS[regime.riskLevel] || RISK_COLORS['moderate'];
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.2 }}
+              className={`w-full mb-5 flex flex-wrap items-center justify-center gap-3 px-4 py-2.5 rounded-lg border border-white/[0.06] ${regimeStyle.bg} ${regimeStyle.glow}`}
+            >
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${riskStyle.dot} animate-pulse`} />
+                <span className={`font-mono text-xs font-bold uppercase tracking-wider ${regimeStyle.text}`}>
+                  {regime.label}
+                </span>
+              </div>
+              <span className="text-white/20">│</span>
+              <span className="font-mono text-[10px] text-text-secondary uppercase tracking-wider">
+                Breadth {regime.breadthPct >= 0 ? '+' : ''}{regime.breadthPct}%
+              </span>
+              <span className="text-white/20">│</span>
+              <span className={`font-mono text-[10px] uppercase tracking-wider ${riskStyle.dot.replace('bg-', 'text-')}`}>
+                {riskStyle.label}
+              </span>
+            </motion.div>
+          );
+        })()}
+
         <div className="w-full mb-6 flex justify-center">
-          <div className="text-center font-mono text-accent-green text-sm md:text-base border border-accent-green/30 bg-accent-green/[0.05] rounded-md px-6 py-3 shadow-[0_0_15px_rgba(0,255,157,0.1)] inline-block min-w-[280px] max-w-2xl h-12 flex items-center justify-center">
+          <div className="text-center font-mono text-accent-green text-sm md:text-base border border-accent-green/30 bg-accent-green/[0.05] rounded-md px-6 py-3 shadow-[0_0_15px_rgba(0,255,157,0.1)] inline-flex min-w-[280px] max-w-2xl h-12 items-center justify-center">
             <span className="text-glow-green">{typedText}</span>
             <span className="typing-cursor ml-[1px]" />
           </div>

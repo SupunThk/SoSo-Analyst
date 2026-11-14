@@ -51,7 +51,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     return () => window.removeEventListener('keydown', handler);
   }, [isMobileOpen, onCloseMobile]);
 
-  if (!isOpen) return null;
+  if (!isOpen && !isMobileOpen) return null;
 
   const sidebarContent = (
     <div
@@ -316,10 +316,11 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Desktop sidebar — always visible */}
-      <div className="hidden md:flex h-full">
-        {sidebarContent}
-      </div>
+      {isOpen && (
+        <div className="hidden md:flex h-full">
+          {sidebarContent}
+        </div>
+      )}
 
       {/* Mobile sidebar — overlay */}
       {isMobileOpen && (

@@ -524,10 +524,23 @@ const classifyMarketRegime = ({ assets = [], sectors = [], indices = [] }) => {
   if (dispersion >= 4) risks.push('High cross-sector dispersion can make broad-market summaries misleading; relative strength matters more than averages.');
   if (stable?.marketcapDomPct >= 10 && broadAverage < 0) risks.push('High stablecoin dominance plus negative breadth points to defensive positioning.');
 
+  // ── Risk Score (0 = low risk, 100 = extreme risk) ──
+  const breadthRisk = clamp((1 - breadthPct / 100) * 40, 0, 40);
+  const dispersionRisk = clamp((dispersion / 10) * 20, 0, 20);
+  const btcDrawdownRisk = btc?.high24h && btc?.price
+    ? clamp(((btc.high24h - btc.price) / btc.high24h) * 100 * 3, 0, 20)
+    : 0;
+  const defensiveRisk = (stable?.marketcapDomPct >= 10 && broadAverage < 0) ? 15 : 0;
+  const negativeAvgRisk = broadAverage < 0 ? clamp(Math.abs(broadAverage) * 3, 0, 15) : 0;
+  const riskScore = Math.round(clamp(breadthRisk + dispersionRisk + btcDrawdownRisk + defensiveRisk + negativeAvgRisk, 0, 100));
+  const riskLevel = riskScore <= 30 ? 'low' : riskScore <= 60 ? 'moderate' : riskScore <= 80 ? 'elevated' : 'high';
+
   return {
     label,
     score: Math.round(score),
     confidence: Math.round(confidence),
+    riskScore,
+    riskLevel,
     breadthPct: round(breadthPct, 1),
     broadAveragePct: round(broadAverage, 2),
     dispersionPct: round(dispersion, 2),
@@ -556,6 +569,22 @@ const buildOpportunityScanner = ({ assets = [], sectors = [], indices = [], sode
     const spread = perps?.spreadPct ?? sodexRow?.spot?.spreadPct;
     const liquidity = perps?.quoteVolume24h ?? sodexRow?.spot?.quoteVolume24h;
 
+    // Risk context fields
+    const high24h = toNumber(asset.high24h);
+    const low24h = toNumber(asset.low24h);
+    const range24h = high24h !== null && low24h !== null && low24h > 0
+      ? ((high24h - low24h) / low24h) * 100
+      : null;
+    const volatilityContext = range24h !== null
+      ? (range24h >= 5 ? 'high 24h range' : range24h >= 2 ? 'moderate range' : 'tight range')
+      : null;
+    const liquidityRisk = spread !== null
+      ? (spread >= 0.1 ? 'wide spread — low liquidity' : spread >= 0.05 ? 'moderate liquidity' : 'tight spread — good liquidity')
+      : (liquidity !== null ? (liquidity < 50000 ? 'low volume' : 'adequate volume') : null);
+    const correlationNote = relative !== null
+      ? (Math.abs(relative) < 0.5 ? 'moving with BTC' : relative > 0 ? 'decoupling bullish vs BTC' : 'decoupling bearish vs BTC')
+      : null;
+
     if (relative !== null && relative >= 0.75) {
       opportunities.push({
         id: `asset-strength-${asset.symbol}`,
@@ -570,7 +599,10 @@ const buildOpportunityScanner = ({ assets = [], sectors = [], indices = [], sode
           spread !== null ? `SoDEX spread: ${formatPct(spread)}` : null
         ].filter(Boolean),
         risk: 'Only actionable if BTC stops dragging the broad tape lower.',
-        nextStep: `Monitor ${asset.symbol} versus BTC and confirm SoDEX depth before sizing.`
+        nextStep: `Monitor ${asset.symbol} versus BTC and confirm SoDEX depth before sizing.`,
+        volatilityContext,
+        liquidityRisk,
+        correlationNote
       });
     } else if (relative !== null && relative <= -0.75) {
       opportunities.push({
@@ -586,7 +618,10 @@ const buildOpportunityScanner = ({ assets = [], sectors = [], indices = [], sode
           liquidity ? `SoDEX quote volume: ${Math.round(liquidity).toLocaleString('en-US')}` : null
         ].filter(Boolean),
         risk: 'Weak assets can snap back hard if broad risk appetite recovers.',
-        nextStep: `Do not treat weakness as a short setup unless trend and order-book pressure agree.`
+        nextStep: `Do not treat weakness as a short setup unless trend and order-book pressure agree.`,
+        volatilityContext,
+        liquidityRisk,
+        correlationNote
       });
     }
   });
@@ -791,7 +826,7 @@ const buildMarketIntelligencePayload = async () => {
     sodex,
     warnings: dedupedWarnings,
     evidence: [
-      `Regime=${regime.label}, confidence=${regime.confidence}, breadth=${formatPct(regime.breadthPct)}.`,
+      `Regime=${regime.label}, confidence=${regime.confidence}, breadth=${formatPct(regime.breadthPct)}, riskScore=${regime.riskScore} (${regime.riskLevel}).`,
       ...regime.drivers.slice(0, 3),
       ...rotation.signals.slice(0, 3).map((signal) => signal.detail),
       topMovers.gainers.length ? `Top gainer (tracked): ${topMovers.gainers[0].symbol} ${formatPct(topMovers.gainers[0].changePct24h)}` : null,

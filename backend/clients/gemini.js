@@ -45,28 +45,56 @@ const buildToolConfig = () => {
   };
 };
 
-const buildRequestBody = (contents, options = {}) => ({
-  contents,
-  tools: filterToolDeclarations(options.allowedFunctionNames),
-  systemInstruction: {
-    parts: [
-      {
-        text: buildSystemPrompt({ version: process.env.SYSTEM_PROMPT_VERSION })
+// Gemini 2.5 rejects requests that mix built-in tools (googleSearch) with
+// function declarations, and rejects any tool use with JSON response mode.
+// So: function tools when the router allowed some; otherwise Google Search
+// grounding; and no tools at all for JSON / lightweight (classifier) calls.
+const buildTools = (options = {}) => {
+  if (options.lightweight || options.responseMimeType === 'application/json') {
+    return null;
+  }
+
+  const declarations = filterToolDeclarations(options.allowedFunctionNames);
+  const hasFunctions = declarations.some((group) => group.functionDeclarations?.length > 0);
+  if (hasFunctions) {
+    return { tools: declarations, usesFunctions: true };
+  }
+
+  return { tools: [{ googleSearch: {} }], usesFunctions: false };
+};
+
+const buildRequestBody = (contents, options = {}) => {
+  const toolSetup = buildTools(options);
+
+  const body = {
+    contents,
+    generationConfig: {
+      temperature: options.lightweight ? 0 : 0.3,
+      topP: 0.85,
+      topK: 40,
+      maxOutputTokens: options.lightweight ? 1024 : 8192,
+      responseMimeType: options.responseMimeType || 'text/plain',
+      thinkingConfig: {
+        thinkingBudget: options.lightweight ? 0 : 4096
       }
-    ]
-  },
-  generationConfig: {
-    temperature: 0.3,
-    topP: 0.85,
-    topK: 40,
-    maxOutputTokens: 8192,
-    responseMimeType: options.responseMimeType || 'text/plain',
-    thinkingConfig: {
-      thinkingBudget: 4096
     }
-  },
-  toolConfig: buildToolConfig()
-});
+  };
+
+  if (!options.lightweight) {
+    body.systemInstruction = {
+      parts: [{ text: buildSystemPrompt({ version: process.env.SYSTEM_PROMPT_VERSION }) }]
+    };
+  }
+
+  if (toolSetup) {
+    body.tools = toolSetup.tools;
+    if (toolSetup.usesFunctions) {
+      body.toolConfig = buildToolConfig();
+    }
+  }
+
+  return body;
+};
 
 const postGeminiGenerateContent = async (contents, options = {}) => {
   const model = selectModel(contents.length, options.toolCallCount || 0);
@@ -129,11 +157,11 @@ const streamGeminiGenerateContent = async (contents, onChunk, options = {}) => {
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           const dataStr = line.slice(6).trim();
-          if (dataStr === '[DONE]') continue;
+          if (dataStr === '[DONE]' || !dataStr) continue;
           try {
             const data = JSON.parse(dataStr);
             const parts = data.candidates?.[0]?.content?.parts || [];
-            const textPart = parts.find(p => p.text);
+            const textPart = parts.find(p => typeof p.text === 'string');
             if (textPart && onChunk) {
               onChunk(textPart.text);
             }
@@ -143,23 +171,27 @@ const streamGeminiGenerateContent = async (contents, onChunk, options = {}) => {
                // Merge text parts (simple concatenation for text, function calls usually come in one chunk)
                const existingParts = fullResponse.candidates[0].content.parts;
                if (textPart) {
-                 const existingTextPart = existingParts.find(p => p.text !== undefined);
+                 const existingTextPart = existingParts.find(p => typeof p.text === 'string');
                  if (existingTextPart) {
                    existingTextPart.text += textPart.text;
                  } else {
                    existingParts.push(textPart);
                  }
                }
-               const funcCallPart = parts.find(p => p.functionCall);
-               if (funcCallPart && !existingParts.find(p => p.functionCall?.name === funcCallPart.functionCall.name)) {
-                 existingParts.push(funcCallPart);
+               const funcCallParts = parts.filter(p => p.functionCall);
+               for (const funcCallPart of funcCallParts) {
+                 if (!existingParts.find(p => p.functionCall?.name === funcCallPart.functionCall.name)) {
+                   existingParts.push(funcCallPart);
+                 }
                }
                // Keep finishReason if present
                if (data.candidates[0].finishReason) {
                  fullResponse.candidates[0].finishReason = data.candidates[0].finishReason;
                }
             }
-          } catch(e) {}
+          } catch(e) {
+             console.error('SSE JSON parse error:', e.message, 'Raw string:', dataStr);
+          }
         }
       }
     });
@@ -170,6 +202,7 @@ const streamGeminiGenerateContent = async (contents, onChunk, options = {}) => {
 };
 
 module.exports = {
+  buildRequestBody,
   formatGeminiErrorMessage,
   postGeminiGenerateContent,
   streamGeminiGenerateContent

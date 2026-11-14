@@ -33,6 +33,17 @@ const messageFeedbackSchema = new mongoose.Schema({
   },
 }, { _id: false });
 
+const analysisSynthesisSchema = new mongoose.Schema({
+  overallLabel: { type: String, default: 'Neutral' },
+  directionalScore: { type: Number, default: null },
+  riskScore: { type: Number, default: null },
+  confidence: { type: String, enum: ['low', 'medium', 'high'], default: 'medium' },
+  analyzedTools: { type: Number, default: 0 },
+  thesis: { type: [String], default: [] },
+  conflicts: { type: [String], default: [] },
+  riskFlags: { type: [String], default: [] }
+}, { _id: false });
+
 const messageSchema = new mongoose.Schema({
   role: {
     type: String,
@@ -46,6 +57,10 @@ const messageSchema = new mongoose.Schema({
   toolCalls: {
     type: [toolCallSchema],
     default: [],
+  },
+  analysisSynthesis: {
+    type: analysisSynthesisSchema,
+    default: null,
   },
   feedback: {
     type: messageFeedbackSchema,

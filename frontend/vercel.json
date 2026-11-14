@@ -5,8 +5,5 @@
       "src": "package.json",
       "use": "@vercel/next"
     }
-  ],
-  "env": {
-    "NEXT_PUBLIC_BACKEND_URL": "https://soso-analyst-backend.onrender.com"
-  }
+  ]
 }
