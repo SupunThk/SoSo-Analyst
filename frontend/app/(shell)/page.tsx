@@ -1,9 +1,8 @@
 'use client';
 
 import { useRef, useEffect, useCallback } from 'react';
-import Button from '@mui/material/Button';
-import Tooltip from '@mui/material/Tooltip';
-import { AnimatePresence, motion } from 'framer-motion';
+import { Tooltip } from '@/components/ui/Tooltip';
+import { AnimatePresence, motion } from 'motion/react';
 import SuggestedQuestions from '@/components/SuggestedQuestions';
 import MessageBubble from '@/components/MessageBubble';
 import HeroState from '@/components/HeroState';
@@ -199,34 +198,16 @@ export default function Home() {
                 autoComplete="off"
                 spellCheck={false}
               />
-              <Tooltip title={isThinking ? 'Analysis in progress' : 'Execute query'} arrow>
-              <span className="mr-2 md:mr-3 shrink-0">
-              <Button
-                type="submit"
-                disabled={isThinking || !input.trim()}
-                aria-label={isThinking ? 'Analysis in progress' : 'Execute query'}
-                variant="outlined"
-                color="primary"
-                size="small"
-                sx={{
-                  minWidth: { xs: 42, sm: 88 },
-                  height: 31,
-                  fontSize: 10,
-                  bgcolor: 'rgba(0,255,157,0.04)',
-                  borderColor: 'rgba(0,255,157,0.35)',
-                  boxShadow: '0 0 0 rgba(0,255,157,0)',
-                  '&:hover': {
-                    bgcolor: 'primary.main',
-                    color: 'primary.contrastText',
-                    borderColor: 'primary.main',
-                    boxShadow: '0 0 24px rgba(0,255,157,0.2)',
-                  },
-                }}
-              >
-                <span className="hidden sm:inline">EXECUTE</span>
-                <span className="sm:hidden">GO</span>
-              </Button>
-              </span>
+              <Tooltip title={isThinking ? 'Analysis in progress' : 'Execute query'} className="mr-2 md:mr-3 shrink-0">
+                <button
+                  type="submit"
+                  disabled={isThinking || !input.trim()}
+                  aria-label={isThinking ? 'Analysis in progress' : 'Execute query'}
+                  className="h-[31px] min-w-[42px] sm:min-w-[88px] rounded-md border border-accent-green/35 bg-accent-green/[0.04] px-3 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-accent-green transition-all hover:border-accent-green hover:bg-accent-green hover:text-[#030503] hover:shadow-[0_0_24px_rgba(0,255,157,0.2)] disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-transparent disabled:text-white/30 disabled:shadow-none"
+                >
+                  <span className="hidden sm:inline">EXECUTE</span>
+                  <span className="sm:hidden">GO</span>
+                </button>
               </Tooltip>
 
               {/* Subtle scanline on input */}

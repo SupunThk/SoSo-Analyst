@@ -17,7 +17,7 @@ import {
   type LineData,
   type Time,
 } from 'lightweight-charts';
-import { Box, CircularProgress, Typography } from '@mui/material';
+import { Spinner } from '@/components/ui/Spinner';
 
 interface TradingViewChartProps {
   symbol: string;
@@ -347,35 +347,35 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
   }, [showVolume]);
 
   return (
-    <Box className="relative w-full rounded-md border border-border/50 bg-[#060A06] overflow-hidden" sx={{ height }}>
+    <div className="relative w-full rounded-md border border-border/50 bg-[#060A06] overflow-hidden" style={{ height }}>
       {loading && (
-        <Box className="absolute inset-0 flex items-center justify-center bg-[#060A06]/80 z-20">
-          <CircularProgress size={30} sx={{ color: '#00FF9D' }} />
-        </Box>
+        <div className="absolute inset-0 flex items-center justify-center bg-[#060A06]/80 z-20">
+          <Spinner size={30} label="Loading chart" />
+        </div>
       )}
       
       {error && (
-        <Box className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-red-900/80 text-white px-4 py-2 rounded text-xs z-20 border border-red-500/50">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-red-900/80 text-white px-4 py-2 rounded text-xs z-20 border border-red-500/50">
           {error}
-        </Box>
+        </div>
       )}
       
       {/* Chart Status Indicator */}
-      <Box className="absolute top-4 left-4 z-10 flex items-center gap-2 bg-black/60 backdrop-blur-sm border border-white/10 px-3 py-1.5 rounded-sm shadow-lg pointer-events-none">
-        <Typography variant="body2" className="text-white font-mono font-bold">
+      <div className="absolute top-4 left-4 z-10 flex items-center gap-2 bg-black/60 backdrop-blur-sm border border-white/10 px-3 py-1.5 rounded-sm shadow-lg pointer-events-none">
+        <span className="text-white font-mono font-bold text-sm">
           {symbol.toUpperCase()}
-        </Typography>
-        <Box className="w-px h-3 bg-white/20 mx-1" />
-        <Box className="flex items-center gap-1.5">
-          <Box className={`w-1.5 h-1.5 rounded-full ${status === 'connected' ? 'bg-[#00FF9D] shadow-[0_0_8px_rgba(0,255,157,0.6)]' : 'bg-red-500'}`} />
-          <Typography variant="caption" className={`font-mono text-[10px] ${status === 'connected' ? 'text-[#00FF9D]' : 'text-red-500'}`}>
+        </span>
+        <div className="w-px h-3 bg-white/20 mx-1" />
+        <div className="flex items-center gap-1.5">
+          <div className={`w-1.5 h-1.5 rounded-full ${status === 'connected' ? 'bg-[#00FF9D] shadow-[0_0_8px_rgba(0,255,157,0.6)]' : 'bg-red-500'}`} />
+          <span className={`font-mono text-[10px] ${status === 'connected' ? 'text-[#00FF9D]' : 'text-red-500'} text-xs`}>
             {status === 'connected' ? 'LIVE' : 'DISCONNECTED'}
-          </Typography>
-        </Box>
-      </Box>
+          </span>
+        </div>
+      </div>
 
       {/* Chart Controls */}
-      <Box className="absolute top-4 left-[160px] z-10 flex items-center gap-2">
+      <div className="absolute top-4 left-[160px] z-10 flex items-center gap-2">
         <div className="bg-black/60 backdrop-blur-md border border-white/10 p-1 rounded-sm shadow-lg flex items-center gap-1">
           <button
             onClick={() => setChartType('candles')}
@@ -405,9 +405,9 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
             VOL
           </button>
         </div>
-      </Box>
+      </div>
       
       <div ref={chartContainerRef} className="w-full h-full" />
-    </Box>
+    </div>
   );
 };

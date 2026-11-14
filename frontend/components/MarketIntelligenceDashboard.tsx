@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import Alert from '@mui/material/Alert';
-import Chip from '@mui/material/Chip';
-import { motion } from 'framer-motion';
+import { Chip } from './ui/Chip';
+import { motion } from 'motion/react';
 import { MarketIntelligence, TokenIntelligence } from '@/lib/types';
 import { fetchMarketIntelligence, fetchTokenIntelligence, isAbortError, isRateLimitError } from '@/lib/api';
 
@@ -22,6 +21,13 @@ const ALERT_STORAGE_KEY = 'soso_signal_alert_disabled_ids';
 interface MarketIntelligenceDashboardProps {
   onRunQuery?: (query: string) => void;
 }
+
+const WarningNote = ({ children }: { children: React.ReactNode }) => (
+  <div role="status" className="flex items-start gap-2 rounded-md border border-accent-amber/25 bg-accent-amber/[0.045] px-3 py-1.5 font-mono text-[9px] text-accent-amber">
+    <span aria-hidden>⚠</span>
+    <span>{children}</span>
+  </div>
+);
 
 const MarketIntelligenceDashboard: React.FC<MarketIntelligenceDashboardProps> = ({ onRunQuery }) => {
   const [data, setData] = useState<MarketIntelligence | null>(null);
@@ -131,24 +137,14 @@ const MarketIntelligenceDashboard: React.FC<MarketIntelligenceDashboardProps> = 
 
   if (error || !data) {
     return (
-      <Alert
-        severity="error"
-        variant="outlined"
-        sx={{
-          width: '100%',
-          bgcolor: 'rgba(255,68,68,0.05)',
-          borderColor: 'rgba(255,68,68,0.35)',
-          color: 'text.primary',
-          fontFamily: 'var(--font-ibm-plex-mono), monospace',
-        }}
-      >
+      <div role="alert" className="w-full rounded-md border border-accent-red/35 bg-accent-red/5 px-4 py-3 font-mono text-text-primary">
         <div className="text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-accent-red">
-          Market Intelligence Offline
+          ⚠ Market Intelligence Offline
         </div>
         <div className="mt-2 text-[11px] font-mono leading-relaxed text-text-primary">
           {error || 'No intelligence payload returned.'}
         </div>
-      </Alert>
+      </div>
     );
   }
 
@@ -170,12 +166,11 @@ const MarketIntelligenceDashboard: React.FC<MarketIntelligenceDashboardProps> = 
               SoSoValue / SoSo SSI / SoDEX
             </span>
             <Chip
-              size="small"
-              label={data.regime.label}
-              color={data.regime.score >= 55 ? 'primary' : data.regime.score <= 45 ? 'error' : 'warning'}
-              variant="outlined"
-              sx={{ height: 20, fontSize: 9, bgcolor: 'rgba(255,255,255,0.025)' }}
-            />
+              tone={data.regime.score >= 55 ? 'green' : data.regime.score <= 45 ? 'red' : 'amber'}
+              className="h-5"
+            >
+              {data.regime.label}
+            </Chip>
           </div>
         </div>
         <div className="grid grid-cols-3 gap-2 md:min-w-[330px]">
@@ -213,39 +208,9 @@ const MarketIntelligenceDashboard: React.FC<MarketIntelligenceDashboardProps> = 
         toggleAlert={toggleAlert}
       />
 
-      {warning && (
-        <Alert
-          severity="warning"
-          variant="outlined"
-          sx={{
-            bgcolor: 'rgba(255,184,0,0.045)',
-            borderColor: 'rgba(255,184,0,0.25)',
-            color: '#FFB800',
-            py: 0,
-            fontFamily: 'var(--font-ibm-plex-mono), monospace',
-            fontSize: 9,
-          }}
-        >
-          {warning}
-        </Alert>
-      )}
+      {warning && <WarningNote>{warning}</WarningNote>}
 
-      {data.warnings.length > 0 && (
-        <Alert
-          severity="warning"
-          variant="outlined"
-          sx={{
-            bgcolor: 'rgba(255,184,0,0.045)',
-            borderColor: 'rgba(255,184,0,0.25)',
-            color: '#FFB800',
-            py: 0,
-            fontFamily: 'var(--font-ibm-plex-mono), monospace',
-            fontSize: 9,
-          }}
-        >
-          {data.warnings.slice(0, 2).join(' | ')}
-        </Alert>
-      )}
+      {data.warnings.length > 0 && <WarningNote>{data.warnings.slice(0, 2).join(' | ')}</WarningNote>}
     </motion.div>
   );
 };

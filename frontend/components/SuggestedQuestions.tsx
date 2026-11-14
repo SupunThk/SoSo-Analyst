@@ -1,9 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
-import Chip from '@mui/material/Chip';
-import Tooltip from '@mui/material/Tooltip';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 
 const QUESTIONS = [
   { cmd: 'CMD-01', icon: '📊', text: 'Give me a full market overview report — BTC price, top movers, sector trends, news, macro calendar, and strategic outlook.' },
@@ -106,39 +104,17 @@ const SuggestedQuestions: React.FC<SuggestedQuestionsProps> = ({ onSelect }) => 
             whileTap={{ scale: 0.99 }}
             className="shrink-0"
           >
-            <Tooltip title={q.text} arrow>
-              <Chip
-                onClick={(e) => handleClick(e, q.text)}
-                variant="outlined"
-                label={
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="text-[8px] opacity-50 font-bold tracking-widest">[{q.cmd}]</span>
-                    <span className="text-xs">{q.icon}</span>
-                    <span className="max-w-[420px] truncate tracking-tight">{q.text}</span>
-                  </span>
-                }
-                sx={{
-                  height: 34,
-                  maxWidth: 520,
-                  borderColor: 'rgba(26,42,26,0.95)',
-                  bgcolor: 'rgba(6,10,6,0.95)',
-                  color: 'text.secondary',
-                  boxShadow: '0 2px 14px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)',
-                  cursor: isDragging ? 'grabbing' : 'pointer',
-                  userSelect: 'none',
-                  '& .MuiChip-label': {
-                    minWidth: 0,
-                    px: 1.25,
-                  },
-                  '&:hover': {
-                    color: 'primary.main',
-                    borderColor: 'rgba(0,255,157,0.45)',
-                    bgcolor: 'rgba(0,255,157,0.06)',
-                    boxShadow: '0 4px 22px rgba(0,255,157,0.08), inset 0 1px 0 rgba(255,255,255,0.05)',
-                  },
-                }}
-              />
-            </Tooltip>
+            {/* Native title, not a CSS tooltip: this strip scrolls, so overflow would clip one. */}
+            <button
+              type="button"
+              title={q.text}
+              onClick={(e) => handleClick(e, q.text)}
+              className={`flex h-[34px] max-w-[520px] select-none items-center gap-2 rounded-md border border-border/95 bg-[#060A06]/95 px-2.5 font-mono font-bold tracking-[0.08em] text-text-secondary shadow-[0_2px_14px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.04)] transition-all hover:border-accent-green/45 hover:bg-accent-green/[0.06] hover:text-accent-green hover:shadow-[0_4px_22px_rgba(0,255,157,0.08),inset_0_1px_0_rgba(255,255,255,0.05)] ${isDragging ? 'cursor-grabbing' : 'cursor-pointer'}`}
+            >
+              <span className="shrink-0 whitespace-nowrap text-[8px] opacity-50 font-bold tracking-widest">[{q.cmd}]</span>
+              <span className="shrink-0 text-xs">{q.icon}</span>
+              <span className="min-w-0 max-w-[420px] truncate text-[13px] tracking-tight">{q.text}</span>
+            </button>
           </motion.div>
         ))}
       </div>

@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Button, Typography, MenuItem, Select } from '@mui/material';
 
 // Dynamically import the charting components with SSR disabled
 const TradingViewChart = dynamic(
@@ -25,13 +24,25 @@ const SodexAnalytics = dynamic(
   { ssr: false }
 );
 
+const SYMBOLS = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE', 'ADA', 'AVAX', 'LINK', 'SUI'];
+const INTERVALS = [
+  { value: '1m', label: '1m' },
+  { value: '5m', label: '5m' },
+  { value: '15m', label: '15m' },
+  { value: '1h', label: '1h' },
+  { value: '4h', label: '4h' },
+  { value: '1d', label: '1D' },
+];
+const SELECT_CLASS =
+  'h-10 rounded-md border border-white/20 bg-white/5 px-3 font-mono text-sm text-white transition-colors hover:border-white/40 focus:border-[#FFB400] focus:outline-none [&>option]:bg-[#060A06]';
+
 export default function ChartsPage() {
   const [symbol, setSymbol] = useState('BTC-USD');
   const [candleInterval, setCandleInterval] = useState('1m');
 
   const handleTradeRedirect = () => {
     // Open SoDEX in a new tab with the pre-filled trade parameters
-    window.open(`https://sodex.com/trade?symbol=${symbol.toUpperCase()}`, '_blank');
+    window.open(`https://sodex.com/trade?symbol=${symbol.toUpperCase()}`, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -40,62 +51,25 @@ export default function ChartsPage() {
         {/* Header Controls */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
           <div>
-            <Typography variant="h4" className="font-orbitron font-bold text-white tracking-wider flex items-center gap-3">
+            <h1 className="font-orbitron font-bold text-white tracking-wider flex items-center gap-3 text-2xl md:text-3xl">
               <span className="text-[#00FF9D]">●</span> TERMINAL
-            </Typography>
-            <Typography variant="body2" className="text-text-secondary font-mono mt-1">
+            </h1>
+            <p className="text-text-secondary font-mono mt-1 text-sm">
               Advanced charting and market depth visualization
-            </Typography>
+            </p>
           </div>
           
           <div className="flex items-center gap-3 w-full md:w-auto">
-            <Select
-              size="small"
-              value={symbol}
-              onChange={(e) => setSymbol(e.target.value)}
-              sx={{
-                color: 'white',
-                fontFamily: 'monospace',
-                bgcolor: 'rgba(255,255,255,0.05)',
-                minWidth: '130px',
-                '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.2)' },
-                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.4)' },
-                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#FFB400' },
-                '.MuiSvgIcon-root': { color: 'rgba(255,255,255,0.5)' }
-              }}
-            >
-              <MenuItem value="BTC-USD">BTC / USD</MenuItem>
-              <MenuItem value="ETH-USD">ETH / USD</MenuItem>
-              <MenuItem value="SOL-USD">SOL / USD</MenuItem>
-              <MenuItem value="BNB-USD">BNB / USD</MenuItem>
-              <MenuItem value="XRP-USD">XRP / USD</MenuItem>
-              <MenuItem value="DOGE-USD">DOGE / USD</MenuItem>
-              <MenuItem value="ADA-USD">ADA / USD</MenuItem>
-              <MenuItem value="AVAX-USD">AVAX / USD</MenuItem>
-              <MenuItem value="LINK-USD">LINK / USD</MenuItem>
-              <MenuItem value="SUI-USD">SUI / USD</MenuItem>
-            </Select>
-            <Select
-              size="small"
-              value={candleInterval}
-              onChange={(e) => setCandleInterval(e.target.value)}
-              sx={{
-                color: 'white',
-                fontFamily: 'monospace',
-                bgcolor: 'rgba(255,255,255,0.05)',
-                '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.2)' },
-                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.4)' },
-                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#FFB400' },
-                '.MuiSvgIcon-root': { color: 'rgba(255,255,255,0.5)' }
-              }}
-            >
-              <MenuItem value="1m">1m</MenuItem>
-              <MenuItem value="5m">5m</MenuItem>
-              <MenuItem value="15m">15m</MenuItem>
-              <MenuItem value="1h">1h</MenuItem>
-              <MenuItem value="4h">4h</MenuItem>
-              <MenuItem value="1d">1D</MenuItem>
-            </Select>
+            <select aria-label="Market" value={symbol} onChange={(e) => setSymbol(e.target.value)} className={`${SELECT_CLASS} min-w-[130px]`}>
+              {SYMBOLS.map((asset) => (
+                <option key={asset} value={`${asset}-USD`}>{asset} / USD</option>
+              ))}
+            </select>
+            <select aria-label="Candle interval" value={candleInterval} onChange={(e) => setCandleInterval(e.target.value)} className={SELECT_CLASS}>
+              {INTERVALS.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -120,32 +94,21 @@ export default function ChartsPage() {
         {/* Action Area */}
         <div className="flex flex-col md:flex-row justify-between items-center bg-[#060A06] border border-border/50 p-4 md:p-6 rounded-lg mb-10">
           <div className="mb-4 md:mb-0">
-            <Typography variant="h6" className="text-white font-mono tracking-tight mb-1">
+            <h2 className="text-white font-mono tracking-tight mb-1 text-lg">
               Ready to execute?
-            </Typography>
-            <Typography variant="body2" className="text-text-secondary">
+            </h2>
+            <p className="text-text-secondary text-sm">
               Deploy your capital on SoDEX with 0% slippage and minimal fees.
-            </Typography>
+            </p>
           </div>
           
-          <Button 
-            variant="contained" 
+          <button
+            type="button"
             onClick={handleTradeRedirect}
-            sx={{
-              bgcolor: '#00FF9D',
-              color: 'black',
-              fontFamily: 'monospace',
-              fontWeight: 'bold',
-              px: 4,
-              py: 1.5,
-              '&:hover': {
-                bgcolor: '#00cc7d',
-                boxShadow: '0 0 15px rgba(0, 255, 157, 0.4)'
-              }
-            }}
+            className="rounded-md bg-[#00FF9D] px-8 py-3 font-mono text-sm font-bold uppercase tracking-[0.08em] text-black transition-all hover:bg-[#00cc7d] hover:shadow-[0_0_15px_rgba(0,255,157,0.4)]"
           >
             [ PLACE TRADE ON SODEX ]
-          </Button>
+          </button>
         </div>
 
         {/* ═══ SoDEX MARKET ANALYTICS ═══ */}

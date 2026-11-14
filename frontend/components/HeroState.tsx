@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 
 import WalletConnect from '@/components/WalletConnect';
 import { WalletConnection, MarketRegime } from '@/lib/types';

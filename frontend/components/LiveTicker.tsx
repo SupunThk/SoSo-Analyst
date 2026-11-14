@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import Chip from '@mui/material/Chip';
-import { motion } from 'framer-motion';
+import { Chip } from './ui/Chip';
+import { motion } from 'motion/react';
 import { TickerAsset } from '@/lib/types';
 import { fetchTickerData } from '@/lib/api';
 
@@ -102,19 +102,9 @@ const LiveTicker: React.FC = () => {
                 {formatPrice(asset.price)}
               </span>
               <div className="w-[75px] flex justify-end">
-                <Chip
-                  size="small"
-                  label={formatChange(asset.change_pct_24h)}
-                  color={isPositive ? 'primary' : 'error'}
-                  variant="outlined"
-                  sx={{
-                    height: 18,
-                    fontSize: 9,
-                    borderColor: isPositive ? 'rgba(0,255,157,0.32)' : 'rgba(255,68,68,0.32)',
-                    bgcolor: isPositive ? 'rgba(0,255,157,0.055)' : 'rgba(255,68,68,0.055)',
-                    '& .MuiChip-label': { px: 0.65 },
-                  }}
-                />
+                <Chip tone={isPositive ? 'green' : 'red'} className="tabular-nums">
+                  {formatChange(asset.change_pct_24h)}
+                </Chip>
               </div>
               <span className="text-border/80 mx-1 text-[10px]">│</span>
             </div>

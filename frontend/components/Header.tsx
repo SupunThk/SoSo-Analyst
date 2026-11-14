@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import Chip from '@mui/material/Chip';
-import Tooltip from '@mui/material/Tooltip';
+import { Chip } from './ui/Chip';
+import { Tooltip } from './ui/Tooltip';
 import WalletConnect from './WalletConnect';
 import { WalletConnection } from '@/lib/types';
 
@@ -179,28 +179,10 @@ const Header: React.FC<HeaderProps> = ({ onOpenManual, onConnectWallet, walletAd
           {/* Status */}
           <div className="flex flex-col items-end">
             <span className="text-[10px] font-sans font-medium text-text-secondary uppercase tracking-wider">STATUS</span>
-            <Chip
-              size="small"
-              label="LIVE"
-              color="primary"
-              variant="outlined"
-              sx={{
-                mt: 0.25,
-                height: 18,
-                fontSize: 10,
-                bgcolor: 'rgba(0,255,157,0.06)',
-                '& .MuiChip-label': { px: 0.75 },
-                '&::before': {
-                  content: '""',
-                  width: 5,
-                  height: 5,
-                  borderRadius: '999px',
-                  bgcolor: 'primary.main',
-                  boxShadow: '0 0 8px rgba(0,255,157,0.8)',
-                  ml: 0.75,
-                },
-              }}
-            />
+            <Chip tone="green" className="mt-0.5 text-[10px]">
+              <span className="h-[5px] w-[5px] rounded-full bg-accent-green shadow-[0_0_8px_rgba(0,255,157,0.8)]" aria-hidden />
+              LIVE
+            </Chip>
           </div>
 
           <div className="h-6 w-px bg-border" />

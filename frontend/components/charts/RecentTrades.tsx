@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Typography } from '@mui/material';
 
 interface Trade {
   id: number;
@@ -93,9 +92,9 @@ export const RecentTrades: React.FC<RecentTradesProps> = ({ symbol }) => {
   return (
     <div className="flex flex-col h-full bg-[#060A06] border border-border/50 rounded-md overflow-hidden">
       <div className="px-3 py-2 border-b border-border/50 bg-black/40">
-        <Typography variant="caption" className="font-mono text-text-secondary tracking-widest uppercase">
+        <span className="font-mono text-text-secondary tracking-widest uppercase text-xs">
           Recent Trades
-        </Typography>
+        </span>
       </div>
       
       <div className="flex px-3 py-1.5 border-b border-border/30 text-[10px] font-mono text-text-secondary/70">

@@ -24,7 +24,6 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Web3Provider } from "@/components/Web3Provider";
 import { Toaster } from "react-hot-toast";
 import { CommandPalette } from "@/components/CommandPalette";
-import { MuiThemeProvider } from "@/components/MuiThemeProvider";
 
 export default function RootLayout({
   children,
@@ -35,18 +34,16 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} ${ibmPlexMono.variable}`}>
       <body className="antialiased relative">
         <ErrorBoundary>
-          <MuiThemeProvider>
-            <Web3Provider>
-              <AuthProvider>
-                <a href="#main-content" className="skip-link">
-                  Skip to main content
-                </a>
-                {children}
-                <CommandPalette />
-                <Toaster position="bottom-right" toastOptions={{ className: 'font-mono text-sm', style: { background: '#050805', color: '#00ff9d', border: '1px solid rgba(0, 255, 157, 0.3)' } }} />
-              </AuthProvider>
-            </Web3Provider>
-          </MuiThemeProvider>
+          <Web3Provider>
+            <AuthProvider>
+              <a href="#main-content" className="skip-link">
+                Skip to main content
+              </a>
+              {children}
+              <CommandPalette />
+              <Toaster position="bottom-right" toastOptions={{ className: 'font-mono text-sm', style: { background: '#050805', color: '#00ff9d', border: '1px solid rgba(0, 255, 157, 0.3)' } }} />
+            </AuthProvider>
+          </Web3Provider>
         </ErrorBoundary>
       </body>
     </html>

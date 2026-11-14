@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Typography } from '@mui/material';
 
 interface OrderLevel {
   price: number;
@@ -157,9 +156,9 @@ export const OrderBook: React.FC<OrderBookProps> = ({ symbol }) => {
   return (
     <div className="flex flex-col h-full bg-[#060A06] border border-border/50 rounded-md overflow-hidden">
       <div className="px-3 py-2 border-b border-border/50 bg-black/40">
-        <Typography variant="caption" className="font-mono text-text-secondary tracking-widest uppercase">
+        <span className="font-mono text-text-secondary tracking-widest uppercase text-xs">
           Order Book
-        </Typography>
+        </span>
       </div>
       
       <div className="flex px-3 py-1.5 border-b border-border/30 text-[10px] font-mono text-text-secondary/70">
@@ -178,12 +177,12 @@ export const OrderBook: React.FC<OrderBookProps> = ({ symbol }) => {
 
           {/* SPREAD (Current Price Approximation) */}
           <div className="py-2 px-3 border-y border-border/30 bg-white/5 flex items-center justify-between">
-            <Typography variant="body2" className={`font-mono font-bold ${asks.length > 0 && bids.length > 0 && asks[asks.length - 1].price < bids[0].price ? 'text-[#FF2A4D]' : 'text-[#00FF9D]'}`}>
+            <span className={`font-mono font-bold ${asks.length > 0 && bids.length > 0 && asks[asks.length - 1].price < bids[0].price ? 'text-[#FF2A4D]' : 'text-[#00FF9D]'} text-sm`}>
               {bids.length > 0 ? formatPrice(bids[0].price) : '---'}
-            </Typography>
-            <Typography variant="caption" className="font-mono text-text-secondary">
+            </span>
+            <span className="font-mono text-text-secondary text-xs">
               Spread: {bids.length > 0 && asks.length > 0 ? formatPrice(asks[asks.length - 1].price - bids[0].price) : '---'}
-            </Typography>
+            </span>
           </div>
 
           {/* BIDS (Buys) */}

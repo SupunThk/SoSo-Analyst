@@ -5,8 +5,15 @@ import { Message, MessageFeedbackRating } from '@/lib/types';
 import ToolCallBadge from './ToolCallBadge';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { motion } from 'framer-motion';
-import { ChartDataPoint, PriceChart } from './charts/PriceChart';
+import { motion } from 'motion/react';
+import dynamic from 'next/dynamic';
+import type { ChartDataPoint } from './charts/PriceChart';
+
+// recharts only loads when an answer actually contains a chart block.
+const PriceChart = dynamic(() => import('./charts/PriceChart').then((mod) => mod.PriceChart), {
+  ssr: false,
+  loading: () => <div className="h-[300px] w-full animate-pulse rounded-md bg-white/[0.02]" />,
+});
 
 interface MessageBubbleProps {
   message: Message;
