@@ -99,8 +99,10 @@ const buildRequestBody = (contents, options = {}) => {
 const postGeminiGenerateContent = async (contents, options = {}) => {
   const model = selectModel(contents.length, options.toolCallCount || 0);
   const requestBody = buildRequestBody(contents, options);
+  const maxAttempts = options.maxAttempts || 3;
+  const timeout = options.timeoutMs || GEMINI_REQUEST_TIMEOUT_MS;
 
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       const response = await axios.post(
         `${GEMINI_API_URL}/${model}:generateContent`,
@@ -110,7 +112,7 @@ const postGeminiGenerateContent = async (contents, options = {}) => {
             'Content-Type': 'application/json',
             'x-goog-api-key': process.env.GEMINI_API_KEY
           },
-          timeout: GEMINI_REQUEST_TIMEOUT_MS
+          timeout
         }
       );
 
@@ -119,7 +121,7 @@ const postGeminiGenerateContent = async (contents, options = {}) => {
       const status = error.response?.status;
       const isRetryable = status === 429 || status === 500 || status === 503;
 
-      if (!isRetryable || attempt === 2) {
+      if (!isRetryable || attempt === maxAttempts - 1) {
         throw error;
       }
 

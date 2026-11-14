@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "node server.js",
     "start": "node server.js",
-    "test": "node --check server.js && node --check routes/agent.js && node --check routes/chats.js && node --check routes/market.js && node --check routes/sodex.js && node --check routes/sosovalue.js && node --check handlers/agentHandlers.js && node --check services/marketIntelligence.js && node --check clients/gemini.js && node --check clients/sodex.js && node --check clients/sodexProfile.js && node --check clients/soso.js && node --check tools/definitions.js && node --check tools/executors.js && node --check tools/executors/index.js && node --check tools/executors/wallet.js && node --check tools/executors/custom.js && node --check tools/executors/etherscanClient.js && node --check normalizers/toolResult.js && node --check prompt/system.js && node --check prompt/versions.js && node --check ai/compress.js && node --check ai/grounding.js && node --check ai/toolRouting.js && node --check evals/intent.js && node --check utils/auth.js && node --check analysis/deterministic.js && node --check analysis/synthesis.js && node tests/auth.test.js && node tests/analysis.test.js && node tests/evals.test.js && node tests/grounding.test.js && node tests/marketIntelligence.test.js && node tests/soso.test.js && node tests/wallet.test.js && node tests/routes.test.js && vitest run tests/agentHandlers.test.js tests/executors.test.js tests/services.test.js tests/gemini.test.js",
-    "test:evals": "node tests/evals.test.js"
+    "test": "node scripts/check-syntax.js && vitest run",
+    "test:evals": "vitest run tests/evals.test.js",
+    "test:evals:live": "node scripts/live-eval.js"
   },
   "engines": {
     "node": ">=22 <25",

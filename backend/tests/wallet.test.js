@@ -146,15 +146,11 @@ const testWalletReturnsPartialCoverageWhenErc20DiscoveryFails = async () => {
   assert.match(preview.chainSummaries[0].errors[0], /ERC-20 discovery failed/);
 };
 
-(async () => {
+test('wallet holdings executor', async () => {
   try {
     await testWalletRetriesRateLimitAndPricesNativeEth();
     await testWalletReturnsPartialCoverageWhenErc20DiscoveryFails();
-    console.log('wallet tests passed');
   } finally {
     axios.get = originalAxiosGet;
   }
-})().catch((err) => {
-  console.error(err);
-  process.exit(1);
 });

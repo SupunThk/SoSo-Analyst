@@ -272,12 +272,59 @@ const buildReportShapeContext = (intent) => {
   ].join('\n');
 };
 
+const LLM_ROUTED_MAX_BUDGET = 'standard';
+const capBudget = (budget, max) =>
+  BUDGET_ORDER.indexOf(budget) > BUDGET_ORDER.indexOf(max) ? max : budget;
+
 const highestBudget = (budgets) => {
   let best = 'simple';
   for (const b of budgets) {
     if (BUDGET_ORDER.indexOf(b) > BUDGET_ORDER.indexOf(best)) best = b;
   }
   return best;
+};
+
+const NodeCache = require('node-cache');
+
+// LLM intent classification, cached per normalised query. One instance on Render's
+// free tier, so an in-process cache is enough (no Redis).
+const CLASSIFIER_TIMEOUT_MS = 3000;
+const classifierCache = new NodeCache({ stdTTL: 60 * 60, maxKeys: 1000, useClones: false });
+const normaliseQuery = (text) => text.toLowerCase().replace(/\s+/g, ' ').trim();
+
+const isClassifierEnabled = () =>
+  Boolean(process.env.GEMINI_API_KEY) && process.env.LLM_INTENT_CLASSIFIER !== 'off';
+
+const classifyIntentsWithLlm = async (text, { force = false } = {}) => {
+  // No key (tests, local runs without .env) or disabled: deterministic regex routing only.
+  if (!force && !isClassifierEnabled()) return [];
+
+  const key = normaliseQuery(text);
+  const cached = classifierCache.get(key);
+  if (cached) return cached;
+
+  const knownIntents = new Set(ROUTING_RULES.map((rule) => rule.intent));
+  try {
+    const prompt = `Classify the following user query into one or more intents.
+Available intents: ${[...knownIntents].join(', ')}.
+Output JSON in the exact format: { "intents": ["intent1", "intent2"] }. If none match, output { "intents": [] }.
+User Query: ${JSON.stringify(text)}`;
+
+    const response = await postGeminiGenerateContent(
+      [{ role: 'user', parts: [{ text: prompt }] }],
+      { responseMimeType: 'application/json', lightweight: true, timeoutMs: CLASSIFIER_TIMEOUT_MS, maxAttempts: 1 }
+    );
+    const answer = response?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const parsed = answer ? JSON.parse(answer) : null;
+    const intents = Array.isArray(parsed?.intents)
+      ? parsed.intents.filter((intent) => knownIntents.has(intent))
+      : [];
+    classifierCache.set(key, intents);
+    return intents;
+  } catch (error) {
+    console.warn('LLM intent classifier failed, falling back to regex:', error.message);
+    return [];
+  }
 };
 
 const inferToolRouting = async (message = '') => {
@@ -311,35 +358,17 @@ const inferToolRouting = async (message = '') => {
     return toRoutingResult(findRule('fundraising'));
   }
 
-  let matchedIntents = [];
-
-  // No key (tests, local runs without .env): skip the LLM and use deterministic regex routing.
-  if (process.env.GEMINI_API_KEY) try {
-    const prompt = `Classify the following user query into one or more intents.
-Available intents: ${ROUTING_RULES.map(r => r.intent).join(', ')}.
-Output JSON in the exact format: { "intents": ["intent1", "intent2"] }. If none match, output [].
-User Query: "${text}"`;
-
-    const response = await postGeminiGenerateContent([{ role: 'user', parts: [{ text: prompt }] }], { responseMimeType: 'application/json', lightweight: true });
-    const answer = response?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (answer) {
-      const parsed = JSON.parse(answer);
-      if (Array.isArray(parsed.intents)) {
-        matchedIntents = parsed.intents;
-      }
-    }
-  } catch (error) {
-    console.warn('LLM intent classifier failed, falling back to regex:', error.message);
-  }
-
-  // Fallback to regex if LLM yielded nothing
-  let matched = [];
-  if (matchedIntents.length > 0) {
-    matched = ROUTING_RULES.filter(rule => matchedIntents.includes(rule.intent));
-  }
+  // Deterministic rules first: on the golden suite they route 32/32 correctly, while
+  // the LLM alone scored 19/32 and over-picked expensive deep-dive budgets
+  // (npm run test:evals:live). The LLM only handles queries no rule recognises.
+  let matched = ROUTING_RULES.filter((rule) => rule.pattern.test(text));
 
   if (matched.length === 0) {
-    matched = ROUTING_RULES.filter((rule) => rule.pattern.test(text));
+    const llmIntents = await classifyIntentsWithLlm(text);
+    // An LLM guess may pick tools but not escalate spend past the default tier.
+    matched = ROUTING_RULES
+      .filter((rule) => llmIntents.includes(rule.intent))
+      .map((rule) => ({ ...rule, budget: capBudget(rule.budget, LLM_ROUTED_MAX_BUDGET) }));
   }
 
   if (!matched.length) {
@@ -409,6 +438,8 @@ const buildToolRoutingContext = (userMessage, { preloadedTools = [], routing } =
 };
 
 module.exports = {
+  classifyIntentsWithLlm,
+  classifierCache,
   BUDGET_TIERS,
   ROUTING_RULES,
   buildToolRoutingContext,

@@ -447,6 +447,7 @@ const runAgentLoop = async (contents, options = {}) => {
 
   // Observability logging
   logAgentRequest({
+    requestId: options.requestId,
     userMessage,
     intent: options.intent || 'unknown',
     allowedTools: allowedFunctionNames,
@@ -505,7 +506,8 @@ const handleChat = async (req, res) => {
       userMessage: payload.userMessage,
       allowedFunctionNames: toolAllowlist.allowedFunctionNames,
       budget: toolAllowlist.budget,
-      intent: toolAllowlist.intent
+      intent: toolAllowlist.intent,
+      requestId: req.id
     });
     res.json(result);
   } catch (error) {
@@ -585,6 +587,7 @@ const handleChatStream = async (req, res) => {
       allowedFunctionNames: toolAllowlist.allowedFunctionNames,
       budget: toolAllowlist.budget,
       intent: toolAllowlist.intent,
+      requestId: req.id,
       onChunk: (text) => send('chunk', { text }),
       onToolStart: ({ name, args, iteration }) => send('tool_start', { name, args, iteration }),
       onToolDone: (toolRecord) => send('tool_done', toolRecord),

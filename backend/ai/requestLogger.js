@@ -7,6 +7,7 @@ const truncateMessage = (message, maxLength = 200) => {
 };
 
 const logAgentRequest = ({
+  requestId = null,
   userMessage = '',
   intent = 'unknown',
   allowedTools = [],
@@ -20,6 +21,7 @@ const logAgentRequest = ({
 } = {}) => {
   const entry = {
     ts: new Date().toISOString(),
+    requestId,
     query: truncateMessage(userMessage),
     intent,
     allowedTools,

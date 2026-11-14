@@ -455,7 +455,7 @@ const testSodexProfileRouteBuildsRealDashboard = async () => {
   }
 };
 
-(async () => {
+test('route integration', async () => {
   try {
     await testAgentStreamInjectsVerifiedWallet();
     await testAgentChatRequiresLogin();
@@ -464,7 +464,6 @@ const testSodexProfileRouteBuildsRealDashboard = async () => {
     await testChatNonceRejectsUnknownOrigin();
     await testSodexProfileRouteBuildsRealDashboard();
     await testSosoUpstreamErrorHandling();
-    console.log('route integration tests passed');
   } finally {
     axios.get = originalAxiosGet;
     axios.post = originalAxiosPost;
@@ -474,7 +473,4 @@ const testSodexProfileRouteBuildsRealDashboard = async () => {
     Chat.findOneAndUpdate = originalChatFindOneAndUpdate;
     Chat.prototype.save = originalChatSave;
   }
-})().catch((err) => {
-  console.error(err);
-  process.exit(1);
 });

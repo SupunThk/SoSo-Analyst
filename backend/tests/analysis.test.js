@@ -3,7 +3,7 @@ const { analyzeToolResult, toNumber } = require('../analysis/deterministic');
 const { combineToolAnalyses } = require('../analysis/synthesis');
 const { normalizeToolResult } = require('../normalizers/toolResult');
 
-try {
+test('deterministic analysis', () => {
   assert.equal(toNumber('$1,234.56'), 1234.56);
   assert.equal(toNumber('12.5%'), 12.5);
 
@@ -171,9 +171,4 @@ try {
   assert.ok(synthesis.directionalScore >= 50);
   assert.ok(Array.isArray(synthesis.scoreBreakdown));
   assert.ok(synthesis.conflicts.length >= 1);
-
-  console.log('analysis tests passed');
-} catch (err) {
-  console.error(err);
-  process.exit(1);
-}
+});

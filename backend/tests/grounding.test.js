@@ -13,5 +13,4 @@ const testPromptVersioning = () => {
   assert.equal(resolvePromptVersion('unknown'), 'v3');
 };
 
-testPromptVersioning();
-console.log('grounding/prompt tests passed');
+test('prompt versioning', testPromptVersioning);

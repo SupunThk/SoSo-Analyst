@@ -104,13 +104,9 @@ const testOpportunityScannerRanksActionableRows = () => {
   assert.ok(opportunities.some((item) => item.symbol === 'SOL'));
 };
 
-try {
+test('market intelligence', () => {
   testPercentNormalization();
   testRegimeClassificationUsesBreadthAndDispersion();
   testRotationSignalsAndAlerts();
   testOpportunityScannerRanksActionableRows();
-  console.log('market intelligence tests passed');
-} catch (err) {
-  console.error(err);
-  process.exit(1);
-}
+});

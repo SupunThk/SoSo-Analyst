@@ -6,7 +6,7 @@ const {
   hashWallet
 } = require('../utils/auth');
 
-(async () => {
+test('wallet login message signs and verifies', async () => {
   const wallet = ethers.Wallet.createRandom();
   const message = buildLoginMessage(wallet.address, 'nonce-for-test');
   const signature = await wallet.signMessage(message);
@@ -16,9 +16,4 @@ const {
   assert.equal(getWalletAddress(wallet.address.toLowerCase()), wallet.address);
   assert.equal(hashWallet(wallet.address), hashWallet(wallet.address.toLowerCase()));
   assert.equal(getWalletAddress('not-a-wallet'), null);
-
-  console.log('auth tests passed');
-})().catch((err) => {
-  console.error(err);
-  process.exit(1);
 });

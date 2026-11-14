@@ -302,10 +302,6 @@ const runAllTests = async () => {
   testEvidenceFactsSurviveCompression();
   testSectorFallbackNormalization();
   testBudgetTiers();
-  console.log('evals tests passed');
 };
 
-runAllTests().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+test('evals, routing and grounding', runAllTests);

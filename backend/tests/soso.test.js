@@ -117,17 +117,13 @@ const testDocumentedEtfV2FlowTool = async () => {
   assert.equal(result.payload.analysis.metrics.latestDirection, 'inflow');
 };
 
-(async () => {
+test('SoSoValue client', async () => {
   try {
     testLargeCurrencyIdsArePreservedAsStrings();
     await testDocumentedCoinListCatalog();
     await testDocumentedEtfV2FlowTool();
-    console.log('soso tests passed');
   } finally {
     axios.get = originalAxiosGet;
     axios.post = originalAxiosPost;
   }
-})().catch((err) => {
-  console.error(err);
-  process.exit(1);
 });
