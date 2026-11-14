@@ -108,27 +108,28 @@ const AnimatedMarkdown: React.FC<{ content: string; animate: boolean }> = ({ con
 
   const shouldAnimateReveal = animate && !prefersReducedMotion;
   const [visibleLength, setVisibleLength] = useState(() => (shouldAnimateReveal ? 0 : content.length));
-  const hasStartedRef = useRef(false);
+  // Resume from the last revealed position: React Strict Mode (and content growth)
+  // re-runs this effect, and a "started once" guard left the reveal stuck at 0.
+  const revealedRef = useRef(0);
 
   useEffect(() => {
-    if (!shouldAnimateReveal || hasStartedRef.current) {
+    if (!shouldAnimateReveal) {
       return;
     }
 
-    hasStartedRef.current = true;
-    let currentPos = 0;
     const totalChars = content.length;
-    
+    if (revealedRef.current >= totalChars) {
+      return;
+    }
+
     const duration = Math.min(1200, Math.max(400, totalChars * 8));
     const charsPerTick = Math.max(1, Math.ceil(totalChars / (duration / 16)));
 
     const interval = setInterval(() => {
-      currentPos += charsPerTick;
-      if (currentPos >= totalChars) {
-        setVisibleLength(totalChars);
+      revealedRef.current = Math.min(totalChars, revealedRef.current + charsPerTick);
+      setVisibleLength(revealedRef.current);
+      if (revealedRef.current >= totalChars) {
         clearInterval(interval);
-      } else {
-        setVisibleLength(currentPos);
       }
     }, 16);
 
