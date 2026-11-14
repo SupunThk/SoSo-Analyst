@@ -1,39 +1,25 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import Image from 'next/image';
 import { motion } from 'motion/react';
 
-import WalletConnect from '@/components/WalletConnect';
+import { Icon } from '@/components/ui/Icon';
 import { WalletConnection, MarketRegime } from '@/lib/types';
 import { fetchMarketIntelligence } from '@/lib/api';
+import { QUICK_PROMPTS } from '@/lib/quickPrompts';
 
-const DEFAULT_HERO_QUERIES = [
-  { icon: '📊', label: 'Market Overview', text: 'Give me a full market overview report - BTC price, top movers, sector trends, news, macro calendar, and strategic outlook.' },
-  { icon: '📰', label: 'Hot News', text: 'Give me a headline-first crypto news report: top stories, why each matters, market readthrough, and what to watch next.' },
-  { icon: '🏦', label: 'ETF Flows', text: 'Give me a US Bitcoin spot ETF flow report: latest flows, top funds, AUM/volume context, BTC price readthrough, and risks.' },
-  { icon: '🔥', label: 'Sectors', text: 'Give me a ranked crypto sector report: sector leaders, laggards, key evidence, rotation takeaway, and risks.' },
-  { icon: '📉', label: 'Macro Events', text: 'Give me a crypto macro calendar report: upcoming events, dates, expected impact, and what to watch next.' },
-];
-
-const DEFAULT_MOCK_PROMPTS = [
-  'Give me a Bitcoin price snapshot report',
-  'Compare Bitcoin and Ethereum in a report table',
-  'Give me a ranked sector rotation report',
-];
-
-const REGIME_COLORS: Record<string, { bg: string; text: string; glow: string }> = {
-  'Risk-On': { bg: 'bg-emerald-500/15', text: 'text-emerald-400', glow: 'shadow-[0_0_12px_rgba(16,185,129,0.2)]' },
-  'Risk-Off': { bg: 'bg-red-500/15', text: 'text-red-400', glow: 'shadow-[0_0_12px_rgba(239,68,68,0.2)]' },
-  'Rotation': { bg: 'bg-amber-500/15', text: 'text-amber-400', glow: 'shadow-[0_0_12px_rgba(245,158,11,0.2)]' },
-  'Chop': { bg: 'bg-slate-400/15', text: 'text-slate-400', glow: 'shadow-[0_0_12px_rgba(148,163,184,0.15)]' },
+const REGIME_TONE: Record<string, string> = {
+  'Risk-On': 'border-accent-green/30 bg-accent-green/[0.07] text-accent-green',
+  'Risk-Off': 'border-accent-red/30 bg-accent-red/[0.07] text-accent-red',
+  Rotation: 'border-accent-amber/30 bg-accent-amber/[0.07] text-accent-amber',
+  Chop: 'border-white/15 bg-white/[0.04] text-text-primary',
 };
 
-const RISK_COLORS: Record<string, { dot: string; label: string }> = {
-  low: { dot: 'bg-emerald-400', label: 'Low Risk' },
-  moderate: { dot: 'bg-amber-400', label: 'Moderate' },
-  elevated: { dot: 'bg-orange-400', label: 'Elevated' },
-  high: { dot: 'bg-red-400', label: 'High Risk' },
+const RISK_LABEL: Record<string, string> = {
+  low: 'Low risk',
+  moderate: 'Moderate risk',
+  elevated: 'Elevated risk',
+  high: 'High risk',
 };
 
 interface HeroStateProps {
@@ -43,151 +29,102 @@ interface HeroStateProps {
   walletAddress?: string | null;
 }
 
-const HeroState: React.FC<HeroStateProps> = ({ onRunQuery, onConnectWallet, walletAddress }) => {
-  const [promptIndex, setPromptIndex] = useState(0);
-  const [typedText, setTypedText] = useState('');
-  const [isDeleting, setIsDeleting] = useState(false);
+const formatSigned = (value: number) => `${value >= 0 ? '+' : ''}${value}%`;
+
+const HeroState: React.FC<HeroStateProps> = ({ onRunQuery, onOpenManual }) => {
   const [regime, setRegime] = useState<MarketRegime | null>(null);
 
-  // Fetch market regime on mount
   useEffect(() => {
     const controller = new AbortController();
     fetchMarketIntelligence(controller.signal)
       .then((data) => {
         if (data?.regime) setRegime(data.regime);
       })
-      .catch(() => { /* silently ignore — hero still works without regime */ });
+      .catch(() => { /* the hero works without the regime strip */ });
     return () => controller.abort();
   }, []);
 
-  useEffect(() => {
-    const currentPrompt = DEFAULT_MOCK_PROMPTS[promptIndex];
-    let timeout: NodeJS.Timeout;
-
-    if (isDeleting) {
-      if (typedText === '') {
-        timeout = setTimeout(() => {
-          setIsDeleting(false);
-          setPromptIndex((prev) => (prev + 1) % DEFAULT_MOCK_PROMPTS.length);
-        }, 30);
-      } else {
-        timeout = setTimeout(() => {
-          setTypedText(typedText.slice(0, -1));
-        }, 30);
-      }
-    } else if (typedText === currentPrompt) {
-      timeout = setTimeout(() => setIsDeleting(true), 2500);
-    } else {
-      timeout = setTimeout(() => {
-        if (!currentPrompt.startsWith(typedText)) {
-          setIsDeleting(true);
-        } else {
-          setTypedText(currentPrompt.slice(0, typedText.length + 1));
-        }
-      }, 70);
-    }
-
-    return () => clearTimeout(timeout);
-  }, [typedText, isDeleting, promptIndex]);
-
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto scroll-smooth px-4 sm:px-6 pt-6 md:pt-10 pb-8 relative z-10">
-      <div className="max-w-7xl min-h-full mx-auto w-full flex flex-col items-center justify-start">
-        <div className="mb-5 flex w-full flex-col items-center justify-between gap-4 md:mb-6 md:flex-row">
-          <div className="flex min-w-0 items-center gap-3 md:gap-4">
-            <div className="hero-logo shrink-0">
-              <Image
-                src="/logo-v2.png"
-                alt="SoSo Analyst"
-                width={92}
-                height={92}
-                className="select-none object-contain h-16 w-16 md:h-20 md:w-20"
-                priority
-              />
-            </div>
-            <div className="min-w-0 text-center md:text-left">
-              <div className="text-xs font-sans font-medium text-text-secondary uppercase tracking-widest">
-                SoSo Analyst Terminal
-              </div>
-              <h2 className="mt-1 text-xl md:text-2xl font-sans font-bold tracking-tight text-white uppercase">
-                Live Market Intelligence
-              </h2>
-            </div>
-          </div>
+    <div className="relative z-10 flex-1 min-h-0 overflow-y-auto scroll-smooth px-4 sm:px-6 lg:px-10">
+      <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-center py-8 md:py-12">
+        <div className="flex flex-col items-center text-center">
+          <span className="inline-flex items-center gap-2 rounded-full border border-accent-green/30 bg-accent-green/[0.06] px-3 py-1 font-mono text-[11px] font-medium tracking-wide text-accent-green">
+            <Icon name="bolt" size={12} />
+            Live SoSoValue intelligence
+          </span>
 
-          <p className="hero-tagline max-w-sm text-center text-xs font-sans font-medium text-text-secondary/90 tracking-widest uppercase leading-relaxed md:text-right">
-            Prices / News / ETF Flows / Macro / Sectors
+          <h2 className="mt-5 max-w-3xl font-sans text-[28px] font-semibold leading-[1.15] tracking-[-0.02em] text-white sm:text-4xl md:text-[44px]">
+            Ask anything about crypto markets
+          </h2>
+          <p className="mt-3 max-w-2xl font-sans text-sm leading-relaxed text-text-secondary sm:text-base">
+            Grounded answers from live data: spot ETF flows, sector rotation, Fed rate odds,
+            token unlocks, fundraising and news.
           </p>
+
+          {regime && (
+            <motion.button
+              type="button"
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              onClick={() => onRunQuery('Explain the current market regime: what is driving it, breadth, and the key risks to watch.')}
+              className={`mt-5 inline-flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-md border px-3 py-1.5 font-mono text-[11px] transition-colors hover:brightness-125 ${REGIME_TONE[regime.label] || REGIME_TONE.Chop}`}
+              aria-label={`Market regime ${regime.label}. Ask for an explanation.`}
+            >
+              <span className="inline-flex items-center gap-1.5 font-semibold uppercase tracking-wider">
+                <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
+                {regime.label}
+              </span>
+              <span className="text-text-secondary">Breadth {formatSigned(regime.breadthPct)}</span>
+              <span className="text-text-secondary">{RISK_LABEL[regime.riskLevel] || 'Moderate risk'}</span>
+            </motion.button>
+          )}
         </div>
 
-        {/* ── Market Regime Indicator ── */}
-        {regime && (() => {
-          const regimeStyle = REGIME_COLORS[regime.label] || REGIME_COLORS['Chop'];
-          const riskStyle = RISK_COLORS[regime.riskLevel] || RISK_COLORS['moderate'];
-          return (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
+        <div className="mt-8 grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2 md:mt-10 lg:grid-cols-3 lg:gap-3">
+          {QUICK_PROMPTS.map((prompt, idx) => (
+            <motion.button
+              key={prompt.id}
+              type="button"
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.2 }}
-              className={`w-full mb-5 flex flex-wrap items-center justify-center gap-3 px-4 py-2.5 rounded-lg border border-white/[0.06] ${regimeStyle.bg} ${regimeStyle.glow}`}
+              transition={{ delay: 0.04 * idx, duration: 0.25 }}
+              onClick={() => onRunQuery(prompt.text)}
+              aria-label={`Ask: ${prompt.label}`}
+              className="hero-grid-card group flex min-w-0 items-start gap-3 rounded-lg border border-border bg-surface/80 p-3.5 text-left transition-colors hover:border-accent-green/40 hover:bg-surface-alt sm:flex-col sm:gap-0 sm:p-4"
             >
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${riskStyle.dot} animate-pulse`} />
-                <span className={`font-mono text-xs font-bold uppercase tracking-wider ${regimeStyle.text}`}>
-                  {regime.label}
+              <div className="flex shrink-0 items-center justify-between sm:w-full">
+                <span className="flex h-8 w-8 items-center justify-center rounded-md border border-accent-green/20 bg-accent-green/[0.06] text-accent-green">
+                  <Icon name={prompt.icon} size={16} />
+                </span>
+                <span className="hidden font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-text-secondary sm:inline">
+                  {prompt.tag}
                 </span>
               </div>
-              <span className="text-white/20">│</span>
-              <span className="font-mono text-[10px] text-text-secondary uppercase tracking-wider">
-                Breadth {regime.breadthPct >= 0 ? '+' : ''}{regime.breadthPct}%
-              </span>
-              <span className="text-white/20">│</span>
-              <span className={`font-mono text-[10px] uppercase tracking-wider ${riskStyle.dot.replace('bg-', 'text-')}`}>
-                {riskStyle.label}
-              </span>
-            </motion.div>
-          );
-        })()}
-
-        <div className="w-full mb-6 flex justify-center">
-          <div className="text-center font-mono text-accent-green text-sm md:text-base border border-accent-green/30 bg-accent-green/[0.05] rounded-md px-6 py-3 shadow-[0_0_15px_rgba(0,255,157,0.1)] inline-flex min-w-[280px] max-w-2xl h-12 items-center justify-center">
-            <span className="text-glow-green">{typedText}</span>
-            <span className="typing-cursor ml-[1px]" />
-          </div>
-        </div>
-
-        {!walletAddress && (
-          <div className="mt-8 mb-4 flex justify-center w-full">
-            <WalletConnect onConnect={onConnectWallet} walletAddress={walletAddress || null} />
-          </div>
-        )}
-
-        <div className="w-full mt-5 mb-5 md:mb-8 rounded-md glass-panel p-2.5 md:p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_12px_48px_rgba(0,0,0,0.35)]">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 md:gap-2.5 w-full">
-            {DEFAULT_HERO_QUERIES.map((q, idx) => (
-              <motion.button
-                key={q.label}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.1, duration: 0.3 }}
-                type="button"
-                aria-label={`Run sample query: ${q.label}`}
-                onClick={() => onRunQuery(q.text)}
-                className="hero-grid-card glass-panel motion-safe:active:scale-[0.99] w-full min-w-0 overflow-hidden flex flex-col items-start gap-1.5 p-2.5 md:p-3.5 rounded-md hover:border-accent-green/45 hover:bg-accent-green/[0.07] text-left group min-h-[74px] md:min-h-[92px]"
-              >
-                <div className="flex items-center gap-2 min-w-0 w-full">
-                  <span className="text-sm">{q.icon}</span>
-                  <span className="min-w-0 truncate text-xs font-sans font-semibold text-accent-green tracking-wider uppercase group-hover:text-white transition-colors">
-                    {q.label}
-                  </span>
+              <div className="min-w-0 sm:mt-3">
+                <div className="flex items-center gap-1.5 font-sans text-[15px] font-medium text-white">
+                  {prompt.label}
+                  <Icon
+                    name="arrowRight"
+                    size={14}
+                    className="text-accent-green opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                  />
                 </div>
-                <span className="block w-full min-w-0 overflow-hidden whitespace-normal break-words [overflow-wrap:anywhere] text-xs font-sans text-text-secondary leading-relaxed line-clamp-2">
-                  {q.text}
-                </span>
-              </motion.button>
-            ))}
-          </div>
+                <p className="mt-1 line-clamp-2 font-sans text-[13px] leading-snug text-text-secondary">
+                  {prompt.description}
+                </p>
+              </div>
+            </motion.button>
+          ))}
         </div>
+
+        <p className="mt-6 text-center font-sans text-xs text-text-secondary">
+          Type <kbd className="rounded border border-border bg-surface px-1.5 py-0.5 font-mono text-[11px] text-text-primary">/help</kbd> for commands, or{' '}
+          <button type="button" onClick={onOpenManual} className="text-accent-green underline-offset-2 hover:underline">
+            open the manual
+          </button>
+          .
+        </p>
       </div>
     </div>
   );

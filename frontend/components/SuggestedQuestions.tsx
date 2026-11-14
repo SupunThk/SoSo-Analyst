@@ -109,11 +109,10 @@ const SuggestedQuestions: React.FC<SuggestedQuestionsProps> = ({ onSelect }) => 
               type="button"
               title={q.text}
               onClick={(e) => handleClick(e, q.text)}
-              className={`flex h-[34px] max-w-[520px] select-none items-center gap-2 rounded-md border border-border/95 bg-[#060A06]/95 px-2.5 font-mono font-bold tracking-[0.08em] text-text-secondary shadow-[0_2px_14px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.04)] transition-all hover:border-accent-green/45 hover:bg-accent-green/[0.06] hover:text-accent-green hover:shadow-[0_4px_22px_rgba(0,255,157,0.08),inset_0_1px_0_rgba(255,255,255,0.05)] ${isDragging ? 'cursor-grabbing' : 'cursor-pointer'}`}
+              className={`flex h-8 max-w-[340px] select-none items-center gap-1.5 rounded-full border border-border bg-surface/80 px-3 font-sans text-[13px] text-text-secondary transition-colors hover:border-accent-green/45 hover:text-white ${isDragging ? 'cursor-grabbing' : 'cursor-pointer'}`}
             >
-              <span className="shrink-0 whitespace-nowrap text-[8px] opacity-50 font-bold tracking-widest">[{q.cmd}]</span>
-              <span className="shrink-0 text-xs">{q.icon}</span>
-              <span className="min-w-0 max-w-[420px] truncate text-[13px] tracking-tight">{q.text}</span>
+              <span className="shrink-0 text-xs" aria-hidden>{q.icon}</span>
+              <span className="min-w-0 truncate">{q.text}</span>
             </button>
           </motion.div>
         ))}

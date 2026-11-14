@@ -14,7 +14,7 @@
   --color-accent-purple: #A78BFA;
   --color-accent-blue: #60A5FA;
   --color-text-primary: #E0E0E0;
-  --color-text-secondary: #8A9A8A; /* Improved contrast from #5A6A5A */
+  --color-text-secondary: #98A69E; /* WCAG AA on #050505 and surfaces */
   --color-glow-green: rgba(0, 255, 157, 0.15);
   
   --font-mono: var(--font-ibm-plex-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -150,8 +150,10 @@ body {
 }
 
 /* ═══════════════ GLOW EFFECTS ═══════════════ */
+/* A single soft halo: the old double 8px+20px shadow smeared small text
+   into an unreadable dark-green blur. */
 .text-glow-green {
-  text-shadow: 0 0 8px rgba(0, 255, 157, 0.5), 0 0 20px rgba(0, 255, 157, 0.2);
+  text-shadow: 0 0 10px rgba(0, 255, 157, 0.28);
 }
 
 .text-glow-amber {

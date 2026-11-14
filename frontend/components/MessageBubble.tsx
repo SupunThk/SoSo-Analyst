@@ -277,10 +277,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isThinking, stat
       className={`group flex flex-col mb-6 ${isUser ? 'items-end' : 'items-start'} msg-enter`}
     >
       {/* Label row */}
-      <div className={`flex items-center gap-2 mb-1.5 px-1 font-mono text-[9px] md:text-[10px] uppercase tracking-[0.2em] ${isUser ? 'flex-row-reverse text-text-secondary' : 'text-accent-green font-bold'}`}>
-        <span className={!isUser ? 'text-glow-green' : ''}>{isUser ? '> USER' : '◈ ANALYST'}</span>
-        <span className="opacity-30">│</span>
-        <span className="opacity-50 tabular-nums">{formatTime(message.timestamp)}</span>
+      <div className={`flex items-center gap-2 mb-1.5 px-1 font-mono text-[10px] uppercase tracking-[0.14em] ${isUser ? 'flex-row-reverse text-text-secondary' : 'text-accent-green font-semibold'}`}>
+        <span>{isUser ? 'You' : '◈ Analyst'}</span>
+        <span className="text-border-bright" aria-hidden>│</span>
+        <span className="tabular-nums font-normal text-text-secondary">{formatTime(message.timestamp)}</span>
       </div>
 
       {/* Message body */}

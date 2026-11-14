@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useCallback } from 'react';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { Icon } from '@/components/ui/Icon';
 import { AnimatePresence, motion } from 'motion/react';
 import SuggestedQuestions from '@/components/SuggestedQuestions';
 import MessageBubble from '@/components/MessageBubble';
@@ -34,8 +35,10 @@ export default function Home() {
     handleNewChat();
   }, [handleNewChat]);
 
-  const isEmptyState = messages.length === 1 && messages[0].id === 'welcome' && !isThinking;
+  // The store starts with no messages until a chat is reset or loaded, so
+  // "empty" means no real messages rather than "exactly the welcome message".
   const visibleMessages = messages.filter((message) => message.id !== 'welcome');
+  const isEmptyState = visibleMessages.length === 0 && !isThinking;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -166,9 +169,9 @@ export default function Home() {
         )}
         </AnimatePresence>
 
-        {/* Control Console */}
-        <div className="shrink-0 bg-gradient-to-t from-background via-background/95 to-transparent pt-4 md:pt-6 pb-4 md:pb-6 px-4 md:px-6 z-10 border-t border-border/40 shadow-[0_-12px_40px_rgba(0,0,0,0.35)]">
-          <div className="max-w-4xl mx-auto">
+        {/* Composer */}
+        <div className="relative z-10 shrink-0 border-t border-border/60 bg-background/90 px-3 pt-3 pb-3 backdrop-blur-md sm:px-6 md:pt-4 md:pb-4">
+          <div className="mx-auto max-w-4xl">
             {!isEmptyState && (
               <SuggestedQuestions onSelect={(q) => onSubmit(undefined, q)} />
             )}
@@ -176,13 +179,11 @@ export default function Home() {
             <form
               onSubmit={onSubmit}
               aria-label="Analysis command"
-              className="group relative flex items-center bg-[#060A06] border border-border/90 rounded-md focus-within:border-accent-green/55 focus-within:shadow-[0_0_0_1px_rgba(0,255,157,0.12),0_10px_40px_rgba(0,0,0,0.5)] transition-[border-color,box-shadow] duration-300 shadow-[0_4px_28px_rgba(0,0,0,0.45)] border-glow-green"
+              className="group relative flex items-center gap-2 rounded-xl border border-border-bright/70 bg-surface p-1.5 pl-3 shadow-[0_8px_32px_rgba(0,0,0,0.45)] transition-[border-color,box-shadow] duration-200 focus-within:border-accent-green/60 focus-within:shadow-[0_0_0_3px_rgba(0,255,157,0.08),0_8px_32px_rgba(0,0,0,0.45)] md:pl-4"
             >
-              <div className="pl-3 md:pl-4 flex items-center">
-                <span className="text-accent-green font-mono text-sm select-none tracking-widest text-glow-green font-bold">
-                  &gt;
-                </span>
-              </div>
+              <span className="select-none font-mono text-sm font-bold text-accent-green" aria-hidden>
+                &gt;
+              </span>
               <input
                 ref={inputRef}
                 type="text"
@@ -191,51 +192,52 @@ export default function Home() {
                   setInput(e.target.value);
                 }}
                 onKeyDown={handleKeyDown}
-                placeholder="ENTER COMMAND OR QUERY..."
+                placeholder="Ask about markets, tokens or ETF flows…"
                 aria-label="Command or query"
                 aria-busy={isThinking}
-                className="min-w-0 flex-1 bg-transparent px-3 py-3.5 md:py-4 text-[12px] md:text-[13px] font-mono focus:outline-none placeholder:text-text-secondary placeholder:text-[10px] md:placeholder:text-[11px] placeholder:tracking-[0.1em] text-white caret-accent-green"
+                className="min-w-0 flex-1 bg-transparent py-2.5 font-sans text-[15px] text-white caret-accent-green placeholder:text-text-secondary/80 focus:outline-none md:py-3"
                 autoComplete="off"
                 spellCheck={false}
+                enterKeyHint="send"
               />
-              <Tooltip title={isThinking ? 'Analysis in progress' : 'Execute query'} className="mr-2 md:mr-3 shrink-0">
+              <Tooltip title={isThinking ? 'Analysis in progress' : 'Run analysis (Enter)'} className="shrink-0">
                 <button
                   type="submit"
                   disabled={isThinking || !input.trim()}
-                  aria-label={isThinking ? 'Analysis in progress' : 'Execute query'}
-                  className="h-[31px] min-w-[42px] sm:min-w-[88px] rounded-md border border-accent-green/35 bg-accent-green/[0.04] px-3 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-accent-green transition-all hover:border-accent-green hover:bg-accent-green hover:text-[#030503] hover:shadow-[0_0_24px_rgba(0,255,157,0.2)] disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-transparent disabled:text-white/30 disabled:shadow-none"
+                  aria-label={isThinking ? 'Analysis in progress' : 'Run analysis'}
+                  className="inline-flex h-10 items-center gap-2 rounded-lg bg-accent-green px-3 font-sans text-sm font-semibold text-[#03140c] transition-[background-color,box-shadow,opacity] hover:shadow-[0_0_20px_rgba(0,255,157,0.3)] disabled:cursor-not-allowed disabled:bg-white/[0.06] disabled:text-text-secondary disabled:shadow-none sm:px-4"
                 >
-                  <span className="hidden sm:inline">EXECUTE</span>
-                  <span className="sm:hidden">GO</span>
+                  <span className="hidden sm:inline">{isThinking ? 'Working' : 'Analyze'}</span>
+                  <Icon name="arrowRight" size={16} strokeWidth={2.25} />
                 </button>
               </Tooltip>
-
-              {/* Subtle scanline on input */}
-              <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(0,255,157,0.012)_50%,transparent_50%)] bg-[length:100%_4px] opacity-40 rounded-md" />
             </form>
 
-            <div className="flex justify-between items-center mt-2 md:mt-2.5 px-1">
-              <span className="text-[8px] text-text-secondary font-mono tracking-[0.15em] uppercase">
-                Session Active <span className="text-accent-green">●</span>
+            <div className="mt-2 flex items-center justify-between gap-3 px-1 font-mono text-[11px] text-text-secondary">
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent-green" aria-hidden />
+                <span className="truncate">
+                  {isThinking ? statusText || 'Analyzing…' : (
+                    <>Live data<span className="hidden sm:inline"> · answers cite SoSoValue sources</span></>
+                  )}
+                </span>
               </span>
-              <div className="flex items-center gap-3 md:gap-4">
+              <div className="flex shrink-0 items-center gap-1">
                 <button
                   type="button"
                   onClick={openManual}
-                  className="text-[8px] text-text-secondary font-mono tracking-widest uppercase rounded-sm px-1.5 py-1 hover:text-accent-green hover:bg-white/[0.04] transition-colors"
+                  className="rounded px-1.5 py-1 transition-colors hover:bg-white/[0.05] hover:text-accent-green"
                 >
-                  [/HELP]
+                  /help
                 </button>
                 <button
                   type="button"
                   onClick={handleClear}
-                  className="text-[8px] text-text-secondary font-mono tracking-widest uppercase rounded-sm px-1.5 py-1 hover:text-accent-amber hover:bg-white/[0.04] transition-colors"
+                  className="rounded px-1.5 py-1 transition-colors hover:bg-white/[0.05] hover:text-accent-amber"
                 >
-                  [/CLEAR]
+                  /clear
                 </button>
-                <span className="text-[8px] text-text-secondary font-mono tracking-widest uppercase hidden md:block">
-                  ↑↓ HISTORY
-                </span>
+                <span className="hidden px-1.5 md:inline">↑↓ history</span>
               </div>
             </div>
           </div>

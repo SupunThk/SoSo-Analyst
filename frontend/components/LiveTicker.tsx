@@ -1,18 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Chip } from './ui/Chip';
 import { motion } from 'motion/react';
 import { TickerAsset } from '@/lib/types';
 import { fetchTickerData } from '@/lib/api';
-
-const CRYPTO_ICONS: Record<string, string> = {
-  BTC: '₿',
-  ETH: 'Ξ',
-  SOL: '◎',
-  XRP: '✕',
-  BNB: '◆',
-};
 
 const TICKER_POLL_INTERVAL_MS = 90_000; // 90s — scrolling marquee doesn't need sub-minute precision
 
@@ -83,30 +74,21 @@ const LiveTicker: React.FC = () => {
       
       <div
         ref={scrollRef}
-        className="flex items-center gap-6 py-2 px-4 ticker-scroll"
+        className="flex items-center gap-3 py-2 px-4 ticker-scroll"
       >
         {doubled.map((asset, i) => {
           const isPositive = (asset.change_pct_24h ?? 0) >= 0;
           return (
             <div
               key={`${asset.symbol}-${i}`}
-              className="flex items-center gap-2 whitespace-nowrap select-none py-0.5"
+              className="flex items-center gap-2 whitespace-nowrap select-none font-mono text-xs"
             >
-              <span className="text-[10px] font-mono text-text-secondary opacity-60 w-3 text-center">
-                {CRYPTO_ICONS[asset.symbol?.toUpperCase()] || '●'}
+              <span className="font-semibold text-text-primary">{asset.symbol?.toUpperCase()}</span>
+              <span className="tabular-nums text-white">{formatPrice(asset.price)}</span>
+              <span className={`tabular-nums ${isPositive ? 'text-accent-green' : 'text-accent-red'}`}>
+                {formatChange(asset.change_pct_24h)}
               </span>
-              <span className="text-[10px] font-mono font-bold text-text-primary tracking-wide w-10">
-                {asset.symbol?.toUpperCase()}
-              </span>
-              <span className="text-[10px] font-mono text-white tabular-nums w-[70px] text-right">
-                {formatPrice(asset.price)}
-              </span>
-              <div className="w-[75px] flex justify-end">
-                <Chip tone={isPositive ? 'green' : 'red'} className="tabular-nums">
-                  {formatChange(asset.change_pct_24h)}
-                </Chip>
-              </div>
-              <span className="text-border/80 mx-1 text-[10px]">│</span>
+              <span className="ml-3 h-3 w-px bg-border" aria-hidden />
             </div>
           );
         })}

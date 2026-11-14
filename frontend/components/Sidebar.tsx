@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Icon } from '@/components/ui/Icon';
+import { QUICK_PROMPTS } from '@/lib/quickPrompts';
 
 interface ChatSession {
   _id: string;
@@ -20,6 +22,7 @@ interface SidebarProps {
   onDeleteChat?: (chatId: string) => void;
   onAnalyzePortfolio?: () => void;
   onOpenManual?: () => void;
+  onRunQuery?: (query: string) => void;
   walletAddress: string | null;
   isChatsLoading?: boolean;
 }
@@ -35,6 +38,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onDeleteChat,
   onAnalyzePortfolio,
   onOpenManual,
+  onRunQuery,
   walletAddress,
   isChatsLoading,
 }) => {
@@ -56,126 +60,101 @@ const Sidebar: React.FC<SidebarProps> = ({
   const sidebarContent = (
     <div
       className={`glass-panel flex flex-col h-full border-r border-border/90 overflow-hidden shrink-0 z-20 transition-[width] duration-300 ease-in-out md:shadow-[6px_0_40px_rgba(0,0,0,0.55)] ${
-        isMinimized ? 'w-16' : 'w-64'
+        isMinimized ? 'w-16' : 'w-[272px]'
       }`}
     >
-      {/* Sidebar Header & Toggle */}
-      <div className={`flex items-center p-4 border-b border-border ${isMinimized ? 'justify-center' : 'justify-between'}`}>
-        {!isMinimized && (
-          <span className="text-[10px] font-mono text-text-secondary tracking-widest uppercase">
-            SESSIONS
-          </span>
-        )}
-        <button
-          onClick={() => setIsMinimized(!isMinimized)}
-          type="button"
-          className="text-text-secondary hover:text-accent-green transition-colors font-mono text-xs hidden md:block"
-          title={isMinimized ? 'Expand Sidebar' : 'Minimize Sidebar'}
-          aria-label={isMinimized ? 'Expand sidebar' : 'Minimize sidebar'}
-        >
-          {isMinimized ? '[>]' : '[<]'}
-        </button>
-        {/* Close button for mobile */}
-        {onCloseMobile && (
-          <button
-            type="button"
-            onClick={onCloseMobile}
-            className="text-text-secondary hover:text-accent-green transition-colors font-mono text-xs md:hidden"
-            title="Close Sidebar"
-            aria-label="Close sessions sidebar"
-          >
-            [✕]
-          </button>
-        )}
-      </div>
-
-      {/* New Chat Button */}
-      <div className="p-4 border-b border-border">
+      {/* New chat + collapse */}
+      <div className={`flex items-center gap-2 border-b border-border p-3 ${isMinimized ? 'flex-col' : ''}`}>
         <button
           type="button"
           onClick={() => {
             onNewChat();
             onCloseMobile?.();
           }}
-          disabled={!walletAddress}
-          className={`w-full flex items-center ${isMinimized ? 'justify-center px-0' : 'justify-between px-4'} py-3 border border-accent-green/30 bg-accent-green/5 hover:bg-accent-green/10 hover:border-accent-green/60 transition-all rounded-sm disabled:opacity-50 disabled:cursor-not-allowed group`}
-          title="New Terminal Session"
-          aria-label="New terminal session"
+          className={`group flex h-10 items-center gap-2 rounded-lg border border-accent-green/35 bg-accent-green/[0.06] font-sans text-sm font-medium text-accent-green transition-colors hover:border-accent-green/70 hover:bg-accent-green/[0.12] ${
+            isMinimized ? 'w-10 justify-center' : 'flex-1 px-3'
+          }`}
+          title="New chat"
+          aria-label="New chat"
         >
-          {!isMinimized && (
-            <span className="text-xs font-mono font-bold text-accent-green tracking-widest uppercase group-hover:text-white transition-colors">
-              [NEW TERMINAL]
-            </span>
-          )}
-          <span className="text-accent-green font-mono">+</span>
+          <Icon name="plus" size={16} strokeWidth={2} />
+          {!isMinimized && <span>New chat</span>}
         </button>
-
-        {walletAddress && !isMinimized && (
+        <button
+          onClick={() => setIsMinimized(!isMinimized)}
+          type="button"
+          className="hidden h-10 w-10 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-white/[0.05] hover:text-white md:flex"
+          title={isMinimized ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={isMinimized ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          <Icon name={isMinimized ? 'chevronRight' : 'chevronLeft'} size={16} />
+        </button>
+        {onCloseMobile && (
           <button
             type="button"
-            onClick={() => {
-              onAnalyzePortfolio?.();
-              onCloseMobile?.();
-            }}
-            className="w-full mt-2 flex items-center justify-between px-4 py-3 border border-accent-amber/30 bg-accent-amber/5 hover:bg-accent-amber/10 hover:border-accent-amber/60 transition-all rounded-sm group"
-            title="Analyze Your Portfolio"
-            aria-label="Analyze portfolio"
+            onClick={onCloseMobile}
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-white/[0.05] hover:text-white md:hidden"
+            aria-label="Close sessions sidebar"
           >
-            <span className="text-xs font-mono font-bold text-accent-amber tracking-widest uppercase group-hover:text-white transition-colors">
-              [ANALYZE PORTFOLIO]
-            </span>
-            <span className="text-accent-amber font-mono">💼</span>
+            <Icon name="close" size={16} />
           </button>
         )}
       </div>
 
+      {/* Quick commands */}
+      {onRunQuery && !isMinimized && (
+        <div className="border-b border-border px-3 py-3">
+          <div className="mb-2 px-1 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-text-secondary">
+            Quick commands
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {QUICK_PROMPTS.map((prompt) => (
+              <button
+                key={prompt.id}
+                type="button"
+                onClick={() => {
+                  onRunQuery(prompt.text);
+                  onCloseMobile?.();
+                }}
+                className="flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-surface/60 px-2 py-1.5 text-left font-sans text-xs text-text-primary transition-colors hover:border-accent-green/40 hover:text-white"
+                title={prompt.label}
+              >
+                <Icon name={prompt.icon} size={13} className="shrink-0 text-accent-green" />
+                <span className="truncate">{prompt.short}</span>
+              </button>
+            ))}
+          </div>
+          {walletAddress && (
+            <button
+              type="button"
+              onClick={() => {
+                onAnalyzePortfolio?.();
+                onCloseMobile?.();
+              }}
+              className="mt-1.5 flex w-full items-center gap-1.5 rounded-md border border-accent-amber/30 bg-accent-amber/[0.05] px-2 py-1.5 font-sans text-xs text-accent-amber transition-colors hover:border-accent-amber/60"
+            >
+              <Icon name="briefcase" size={13} className="shrink-0" />
+              Analyze my portfolio
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Chat History List */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2">
-        {!walletAddress ? (
-          /* ── Polished Empty State ── */
-          <div className="flex flex-col items-center justify-center mt-8 px-3">
-            {isMinimized ? (
-              <span className="text-[10px] font-mono text-text-secondary">!</span>
-            ) : (
-              <>
-                {/* Wallet icon */}
-                <div className="wallet-icon-pulse mb-4">
-                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="text-accent-green/50">
-                    <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
-                    <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
-                    <path d="M18 12a2 2 0 0 0 0 4h4v-4h-4z" />
-                  </svg>
-                </div>
-                <span className="text-[10px] font-mono text-text-secondary tracking-widest uppercase text-center mb-2">
-                  NO WALLET CONNECTED
-                </span>
-                <p className="text-[9px] font-mono text-text-secondary/60 text-center leading-relaxed mb-4">
-                  Connect your wallet to save sessions, track history, and rate responses.
-                </p>
-
-                {/* Divider */}
-                <div className="w-full border-t border-border my-3" />
-
-                {/* Featured Queries */}
-                <span className="text-[8px] font-mono text-text-secondary/50 tracking-widest uppercase w-full mb-2">
-                  ▸ QUICK COMMANDS
-                </span>
-                {[
-                  { icon: '📊', text: 'BTC vs ETH' },
-                  { icon: '💹', text: 'ETF Flows' },
-                  { icon: '🔥', text: 'Sector Spotlight' },
-                ].map((q) => (
-                  <div
-                    key={q.text}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-mono text-text-secondary/50 border border-border/50 rounded-sm mb-1"
-                  >
-                    <span className="text-xs">{q.icon}</span>
-                    <span className="tracking-tight">{q.text}</span>
-                  </div>
-                ))}
-              </>
-            )}
+        {!isMinimized && (
+          <div className="px-1 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-text-secondary">
+            History
           </div>
+        )}
+        {!walletAddress ? (
+          isMinimized ? null : (
+            <div className="rounded-lg border border-dashed border-border px-3 py-4 text-center">
+              <p className="font-sans text-xs leading-relaxed text-text-secondary">
+                Connect a wallet to save chats, revisit history and rate answers.
+              </p>
+            </div>
+          )
         ) : isChatsLoading ? (
           <div className="flex flex-col gap-2">
             {[...Array(5)].map((_, i) => (
@@ -183,11 +162,9 @@ const Sidebar: React.FC<SidebarProps> = ({
             ))}
           </div>
         ) : chats.length === 0 ? (
-          <div className="text-center mt-10 px-2">
-            <span className="text-[10px] font-mono text-text-secondary tracking-widest uppercase">
-              {isMinimized ? '0' : 'NO ACTIVE SESSIONS'}
-            </span>
-          </div>
+          isMinimized ? null : (
+            <p className="px-1 py-2 font-sans text-xs text-text-secondary">No saved chats yet.</p>
+          )
         ) : (
           <motion.div 
             initial="hidden" 
@@ -215,18 +192,19 @@ const Sidebar: React.FC<SidebarProps> = ({
                     onSelectChat(chat._id);
                     onCloseMobile?.();
                   }}
-                  className={`w-full ${isMinimized ? 'text-center p-2' : 'text-left p-3 pr-8'} rounded-sm border transition-all ${
+                  className={`w-full ${isMinimized ? 'text-center p-2' : 'text-left px-3 py-2.5 pr-8'} rounded-md border transition-colors ${
                     activeChatId === chat._id
-                      ? 'bg-accent-green/10 border-accent-green/50'
-                      : 'bg-transparent border-transparent hover:bg-white/5'
+                      ? 'bg-accent-green/[0.08] border-accent-green/40'
+                      : 'bg-transparent border-transparent hover:bg-white/[0.04]'
                   }`}
                   title={isMinimized ? chat.title : undefined}
+                  aria-current={activeChatId === chat._id ? 'true' : undefined}
                 >
-                  <div className={`text-xs font-mono text-white mb-1 ${isMinimized ? 'truncate text-center' : 'truncate'}`}>
+                  <div className={`font-sans text-[13px] text-white ${isMinimized ? 'truncate text-center' : 'truncate'}`}>
                     {isMinimized ? chat.title.substring(0, 2).toUpperCase() : chat.title}
                   </div>
                   {!isMinimized && (
-                    <div className="text-[9px] font-mono text-text-secondary">
+                    <div className="mt-0.5 font-mono text-[10px] text-text-secondary">
                       {new Date(chat.updatedAt).toLocaleDateString()}
                     </div>
                   )}
@@ -282,9 +260,8 @@ const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      {/* Footer — System Manual on mobile + branding */}
-      <div className={`border-t border-border bg-[#020302]`}>
-        {/* System Manual link (shown on mobile sidebar) */}
+      {/* Footer */}
+      <div className="border-t border-border">
         {onOpenManual && (
           <button
             type="button"
@@ -292,24 +269,14 @@ const Sidebar: React.FC<SidebarProps> = ({
               onOpenManual();
               onCloseMobile?.();
             }}
-            className="w-full md:hidden flex items-center gap-2 px-4 py-3 border-b border-border text-accent-green/80 hover:text-accent-green hover:bg-accent-green/5 transition-colors"
+            className={`flex w-full items-center gap-2 px-4 py-3 font-sans text-xs text-text-secondary transition-colors hover:bg-white/[0.04] hover:text-white ${isMinimized ? 'justify-center' : ''}`}
             aria-label="Open system manual"
+            title="System manual"
           >
-            <span className="text-[10px] font-mono font-bold tracking-widest uppercase">
-              [SYSTEM MANUAL]
-            </span>
+            <Icon name="help" size={15} className="shrink-0" />
+            {!isMinimized && <span>Manual &amp; shortcuts</span>}
           </button>
         )}
-        <div className={`p-4 flex items-center ${isMinimized ? 'justify-center' : 'justify-start'}`}>
-          <div className={`flex items-center ${isMinimized ? 'justify-center' : 'gap-2'}`} title="System Online">
-            <div className="w-1.5 h-1.5 bg-accent-green rounded-full shadow-[0_0_8px_rgba(0,255,157,0.6)] shrink-0" />
-            {!isMinimized && (
-              <span className="text-[9px] font-mono text-text-secondary uppercase tracking-[0.2em]">
-                System Online
-              </span>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   );

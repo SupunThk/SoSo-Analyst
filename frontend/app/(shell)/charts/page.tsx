@@ -51,10 +51,10 @@ export default function ChartsPage() {
         {/* Header Controls */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
           <div>
-            <h1 className="font-orbitron font-bold text-white tracking-wider flex items-center gap-3 text-2xl md:text-3xl">
-              <span className="text-[#00FF9D]">●</span> TERMINAL
+            <h1 className="flex items-center gap-2.5 font-sans text-2xl font-semibold tracking-tight text-white md:text-3xl">
+              <span className="h-2 w-2 rounded-full bg-accent-green shadow-[0_0_8px_rgba(0,255,157,0.6)]" aria-hidden /> Charts
             </h1>
-            <p className="text-text-secondary font-mono mt-1 text-sm">
+            <p className="mt-1 font-sans text-sm text-text-secondary">
               Advanced charting and market depth visualization
             </p>
           </div>

@@ -101,8 +101,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     handleDeleteChat(chatId, authSession, handleNewChat);
   };
 
-  const onAnalyzePortfolio = () => {
-    const text = 'Analyze my portfolio — check my holdings, risk profile, and market fit.';
+  const runQuery = (text: string) => {
+    if (useTerminalStore.getState().isThinking) return;
     setInput('');
     addCommand(text);
     handleSubmit(
@@ -118,9 +118,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const onAnalyzePortfolio = () => runQuery('Analyze my portfolio — check my holdings, risk profile, and market fit.');
+
   return (
     <>
-      {booting && <TerminalBoot onComplete={() => setBooting(false)} />}
+      {booting &&<TerminalBoot onComplete={() => setBooting(false)} />}
       <div className="h-screen h-[100dvh] w-screen max-w-[100vw] bg-background overflow-hidden font-sans matrix-grid text-text-primary flex flex-col">
       <main
         id="main-content"
@@ -153,6 +155,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               onDeleteChat={onDeleteChat}
               onAnalyzePortfolio={onAnalyzePortfolio}
               onOpenManual={() => setIsManualOpen(true)}
+              onRunQuery={runQuery}
               walletAddress={walletAddress}
               isChatsLoading={isChatsLoading}
             />

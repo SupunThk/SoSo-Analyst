@@ -360,8 +360,9 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
         </div>
       )}
       
-      {/* Chart Status Indicator */}
-      <div className="absolute top-4 left-4 z-10 flex items-center gap-2 bg-black/60 backdrop-blur-sm border border-white/10 px-3 py-1.5 rounded-sm shadow-lg pointer-events-none">
+      {/* Chart status + controls: one wrapping row, clear of the price scale */}
+      <div className="absolute top-3 left-3 right-20 z-10 flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm border border-white/10 px-3 py-1.5 rounded-sm shadow-lg pointer-events-none">
         <span className="text-white font-mono font-bold text-sm">
           {symbol.toUpperCase()}
         </span>
@@ -375,7 +376,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
       </div>
 
       {/* Chart Controls */}
-      <div className="absolute top-4 left-[160px] z-10 flex items-center gap-2">
+      <div className="flex items-center gap-2">
         <div className="bg-black/60 backdrop-blur-md border border-white/10 p-1 rounded-sm shadow-lg flex items-center gap-1">
           <button
             onClick={() => setChartType('candles')}
@@ -405,6 +406,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
             VOL
           </button>
         </div>
+      </div>
       </div>
       
       <div ref={chartContainerRef} className="w-full h-full" />

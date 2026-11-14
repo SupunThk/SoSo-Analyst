@@ -3,10 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Chip } from './ui/Chip';
 import { Tooltip } from './ui/Tooltip';
+import { Icon } from './ui/Icon';
 import WalletConnect from './WalletConnect';
 import { WalletConnection } from '@/lib/types';
+import { NAV_ITEMS, isNavActive } from '@/lib/navigation';
 
 interface HeaderProps {
   onOpenManual?: () => void;
@@ -16,184 +17,100 @@ interface HeaderProps {
   mobileSidebarOpen?: boolean;
 }
 
+const formatUtc = (now: Date) =>
+  [now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds()].map((n) => String(n).padStart(2, '0')).join(':');
+
 const Header: React.FC<HeaderProps> = ({ onOpenManual, onConnectWallet, walletAddress, onToggleMobileSidebar, mobileSidebarOpen }) => {
   const pathname = usePathname();
   const [time, setTime] = useState('');
-  const [colonVisible, setColonVisible] = useState(true);
-  const [uptime, setUptime] = useState(0);
 
   useEffect(() => {
-    const start = Date.now();
-
-    const tick = () => {
-      const now = new Date();
-      const h = String(now.getUTCHours()).padStart(2, '0');
-      const m = String(now.getUTCMinutes()).padStart(2, '0');
-      const s = String(now.getUTCSeconds()).padStart(2, '0');
-      setTime(`${h}:${m}:${s}`);
-      setColonVisible(prev => !prev);
-      setUptime(Math.floor((Date.now() - start) / 1000));
-    };
-
+    const tick = () => setTime(formatUtc(new Date()));
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, []);
 
-  const formatUptime = (s: number) => {
-    const min = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${String(min).padStart(2, '0')}${colonVisible ? ':' : ' '}${String(sec).padStart(2, '0')}`;
-  };
-
   return (
-    <header className="glass-panel relative w-full max-w-full border-b border-border/80 py-2.5 px-3 sm:px-4 md:px-6 flex justify-between items-center gap-2 sticky top-0 z-20 overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
-      <div className="flex items-center gap-2 md:gap-4 min-w-0 pr-24 sm:pr-32 md:pr-0">
-        {/* Hamburger menu — mobile only */}
+    <header className="sticky top-0 z-20 flex w-full max-w-full items-center justify-between gap-3 border-b border-border/80 bg-background/85 px-3 py-2 backdrop-blur-md sm:px-4 md:px-6">
+      <div className="flex min-w-0 items-center gap-2 md:gap-6">
         {onToggleMobileSidebar && (
           <button
             type="button"
             onClick={onToggleMobileSidebar}
-            className="md:hidden flex flex-col items-center justify-center w-8 h-8 gap-[5px] text-text-secondary hover:text-accent-green transition-colors"
-            title="Open Sidebar"
+            className="-ml-1 flex h-9 w-9 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-white/[0.05] hover:text-white md:hidden"
             aria-controls="sessions-sidebar"
             aria-label={mobileSidebarOpen ? 'Close sessions sidebar' : 'Open sessions sidebar'}
             aria-expanded={Boolean(mobileSidebarOpen)}
           >
-            <span className="block w-4 h-[1.5px] bg-current rounded-full" />
-            <span className="block w-4 h-[1.5px] bg-current rounded-full" />
-            <span className="block w-3 h-[1.5px] bg-current rounded-full" />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" aria-hidden>
+              <path d="M4 7h16M4 12h16M4 17h10" />
+            </svg>
           </button>
         )}
 
-          <Link href="/" className="flex items-center gap-2.5 min-w-0">
-            <div className="relative">
-              <div className="w-2 h-2 bg-accent-green rounded-full shadow-[0_0_8px_rgba(0,255,157,0.6)]" />
-              <div className="absolute inset-0 w-2 h-2 bg-accent-green rounded-full animate-ping opacity-30" />
-            </div>
-            <h1 className="font-mono text-xs sm:text-sm md:text-base font-bold tracking-tight text-white uppercase truncate hover:text-accent-green transition-colors">
-              SoSo<span className="text-accent-green text-glow-green">Analyst</span>
-            </h1>
-          </Link>
-        <div className="h-4 w-px bg-border hidden md:block" />
-        <span className="text-[11px] font-mono font-medium text-text-secondary uppercase tracking-widest hidden md:block">
-          Terminal v3.0
-        </span>
-        
-        {/* Navigation Tabs */}
-        <div className="hidden md:flex bg-black/40 border border-white/5 rounded-md p-1 shadow-inner gap-1 ml-2">
-          <Link
-            href="/"
-            className={`px-3 py-1.5 rounded-sm text-xs font-sans font-medium transition-colors ${
-              pathname === '/'
-                ? 'bg-white/10 text-white shadow-[0_1px_2px_rgba(0,0,0,0.2)]'
-                : 'text-text-secondary hover:text-white hover:bg-white/5'
-            }`}
-          >
-            Terminal
-          </Link>
+        <Link href="/" className="flex min-w-0 items-center gap-2.5 rounded-md" aria-label="SoSo Analyst home">
+          <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-accent-green/35 bg-accent-green/[0.08] text-accent-green">
+            <Icon name="terminal" size={16} />
+            <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-accent-green shadow-[0_0_6px_rgba(0,255,157,0.8)]" aria-hidden />
+          </span>
+          <span className="truncate font-sans text-[15px] font-semibold tracking-tight text-white sm:text-base">
+            SoSo <span className="text-accent-green">Analyst</span>
+          </span>
+        </Link>
 
-          <Link
-            href="/market"
-            className={`px-3 py-1.5 rounded-sm text-xs font-sans font-medium transition-colors ${
-              pathname === '/market'
-                ? 'bg-white/10 text-white shadow-[0_1px_2px_rgba(0,0,0,0.2)]'
-                : 'text-text-secondary hover:text-white hover:bg-white/5'
-            }`}
-          >
-            Market
-          </Link>
-
-          <Link
-            href="/indexes"
-            className={`px-3 py-1.5 rounded-sm text-xs font-sans font-medium transition-colors ${
-              pathname === '/indexes'
-                ? 'bg-white/10 text-white shadow-[0_1px_2px_rgba(0,0,0,0.2)]'
-                : 'text-text-secondary hover:text-white hover:bg-white/5'
-            }`}
-          >
-            Indexes
-          </Link>
-          
-          <Link
-            href="/profile"
-            className={`px-3 py-1.5 rounded-sm text-xs font-sans font-medium transition-colors ${
-              pathname === '/profile'
-                ? 'bg-white/10 text-white shadow-[0_1px_2px_rgba(0,0,0,0.2)]'
-                : 'text-text-secondary hover:text-white hover:bg-white/5'
-            }`}
-          >
-            Dashboard
-          </Link>
-
-          <Link
-            href="/charts"
-            className={`px-3 py-1.5 rounded-sm text-xs font-sans font-medium transition-colors flex items-center gap-1.5 ${
-              pathname === '/charts'
-                ? 'bg-white/10 text-white shadow-[0_1px_2px_rgba(0,0,0,0.2)]'
-                : 'text-text-secondary hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <span className="w-1.5 h-1.5 bg-accent-amber rounded-full shadow-[0_0_4px_rgba(255,180,0,0.6)]"></span>
-            Charts
-          </Link>
-
-        </div>
+        <nav className="hidden items-center gap-1 md:flex" aria-label="Main navigation">
+          {NAV_ITEMS.map((item) => {
+            const active = isNavActive(pathname, item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? 'page' : undefined}
+                className={`relative rounded-md px-3 py-1.5 font-sans text-[13px] font-medium transition-colors ${
+                  active ? 'bg-white/[0.06] text-white' : 'text-text-secondary hover:bg-white/[0.04] hover:text-white'
+                }`}
+              >
+                {item.label}
+                {active && (
+                  <span className="absolute inset-x-3 -bottom-[9px] h-[2px] rounded-full bg-accent-green" aria-hidden />
+                )}
+              </Link>
+            );
+          })}
+        </nav>
       </div>
 
-      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2 shrink-0 md:static md:translate-y-0 md:gap-5">
-        <div className="hidden md:flex items-center gap-5">
-
-          {onOpenManual && (
-            <Tooltip title="System Manual" placement="bottom">
-              <button
-                onClick={onOpenManual}
-                className="text-text-secondary hover:text-white transition-colors font-mono text-xs px-1"
-                aria-label="System Manual"
-              >
-                [ ? ]
-              </button>
-            </Tooltip>
-          )}
-
-          <div className="h-6 w-px bg-border" />
-
-          {/* Uptime */}
-          <div className="flex flex-col items-end">
-            <span className="text-[10px] font-sans font-medium text-text-secondary uppercase tracking-wider">UPTIME</span>
-            <span className="text-xs font-mono text-accent-green tabular-nums">{formatUptime(uptime)}</span>
-          </div>
-
-          <div className="h-6 w-px bg-border" />
-
-          {/* UTC Clock */}
-          <div className="flex flex-col items-end">
-            <span className="text-[10px] font-sans font-medium text-text-secondary uppercase tracking-wider">UTC</span>
-            <span className="text-xs font-mono text-accent-green text-glow-green tabular-nums font-bold">
-              {time}
+      <div className="flex shrink-0 items-center gap-2 md:gap-3">
+        <div className="hidden items-center gap-3 rounded-md border border-border bg-surface/70 px-3 py-1.5 lg:flex">
+          <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-accent-green">
+            <span className="relative flex h-1.5 w-1.5" aria-hidden>
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-green opacity-50" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent-green" />
             </span>
-          </div>
-
-          <div className="h-6 w-px bg-border" />
-
-          {/* Status */}
-          <div className="flex flex-col items-end">
-            <span className="text-[10px] font-sans font-medium text-text-secondary uppercase tracking-wider">STATUS</span>
-            <Chip tone="green" className="mt-0.5 text-[10px]">
-              <span className="h-[5px] w-[5px] rounded-full bg-accent-green shadow-[0_0_8px_rgba(0,255,157,0.8)]" aria-hidden />
-              LIVE
-            </Chip>
-          </div>
-
-          <div className="h-6 w-px bg-border" />
+            Live
+          </span>
+          <span className="h-3.5 w-px bg-border" aria-hidden />
+          <span className="font-mono text-[11px] tabular-nums text-text-primary" aria-label="UTC time">
+            {time || '--:--:--'} <span className="text-text-secondary">UTC</span>
+          </span>
         </div>
 
-        {/* User Profile / Wallet */}
+        {onOpenManual && (
+          <Tooltip title="System manual" placement="bottom">
+            <button
+              type="button"
+              onClick={onOpenManual}
+              className="hidden h-9 w-9 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-white/[0.05] hover:text-white md:flex"
+              aria-label="Open system manual"
+            >
+              <Icon name="help" size={18} />
+            </button>
+          </Tooltip>
+        )}
+
         {onConnectWallet && (
-          <div className="flex flex-col items-end gap-1">
-            <span className="hidden md:block text-[10px] font-sans font-medium text-text-secondary uppercase tracking-wider">PROFILE</span>
-            <WalletConnect onConnect={onConnectWallet} walletAddress={walletAddress || null} />
-          </div>
+          <WalletConnect onConnect={onConnectWallet} walletAddress={walletAddress || null} />
         )}
       </div>
     </header>
