@@ -52,6 +52,7 @@ const analyzeToolResult = (toolName: string, data: any, _args: Record<string, an
       break;
     case 'get_asset_news_brief':
     case 'get_hot_news_digest':
+    case 'search_crypto_news':
       analysis = analyzeNews(toolName, data);
       break;
     case 'get_token_economics':

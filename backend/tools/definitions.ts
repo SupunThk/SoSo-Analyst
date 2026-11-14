@@ -42,13 +42,12 @@ const allDeclarations = [
   },
   {
     name: 'get_asset_price_history',
-    description: 'Get historical price data (candlestick/kline data) for a crypto asset over a period. Use this for trend analysis, chart-based questions, or when the user asks about price movement over time (e.g. "How has BTC performed this month?", "Show me ETH price trend").',
+    description: 'Get daily price history (OHLCV candles) for a crypto asset, covering up to the last ~90 days. Use this for trend analysis, chart-based questions, or when the user asks about price movement over time (e.g. "How has BTC performed this month?", "Show me ETH price trend").',
     parameters: {
       type: 'OBJECT',
       properties: {
         asset: { type: 'STRING', description: 'Asset name or symbol.' },
-        interval: { type: 'STRING', description: 'Candle interval: 1h, 4h, 1d, 1w. Default 1d.' },
-        limit: { type: 'NUMBER', description: 'Number of candles to return, default 30, max 90.' }
+        limit: { type: 'NUMBER', description: 'Number of daily candles to return, default 30, max 90.' }
       },
       required: ['asset']
     }
@@ -88,13 +87,25 @@ const allDeclarations = [
     }
   },
   {
-    name: 'get_etf_flow_brief',
-    description: 'Get a US spot ETF flow report for BTC or ETH - includes daily net flow trend and top-performing ETF funds (e.g. IBIT, FBTC, GBTC). Use for ETF-related questions.',
+    name: 'search_crypto_news',
+    description: 'Search SoSoValue crypto news by keyword - a project, person, exchange, protocol or topic (e.g. "Saylor", "Binance", "stablecoin bill", "hack"). Use for news about a specific subject that is not a single listed coin. For one coin use get_asset_news_brief; for broad headlines use get_hot_news_digest.',
     parameters: {
       type: 'OBJECT',
       properties: {
-        assetSymbol: { type: 'STRING', description: 'BTC or ETH only.' },
-        countryCode: { type: 'STRING', description: 'Country code, default US.' },
+        keyword: { type: 'STRING', description: 'Search keyword or short phrase.' },
+        limit: { type: 'NUMBER', description: 'Number of articles, default 5, max 10.' }
+      },
+      required: ['keyword']
+    }
+  },
+  {
+    name: 'get_etf_flow_brief',
+    description: 'Get a spot crypto ETF flow report - daily net flow trend, total net assets, cumulative inflow, and the largest funds (e.g. IBIT, FBTC, GBTC) with their latest flows and premium/discount. Use for ETF-related questions.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        assetSymbol: { type: 'STRING', description: 'Underlying asset: BTC, ETH, SOL, XRP, LTC, HBAR, DOGE, LINK, AVAX or DOT. Most questions are BTC or ETH.' },
+        countryCode: { type: 'STRING', description: 'US (default) or HK.' },
         days: { type: 'NUMBER', description: 'Number of recent flow data points, default 5, max 30.' }
       },
       required: ['assetSymbol']
@@ -136,11 +147,12 @@ const allDeclarations = [
   },
   {
     name: 'get_btc_purchase_history_brief',
-    description: 'Get the Bitcoin purchase history for a specific public company - shows dates, amounts, and prices of BTC acquisitions. Use for "When did MicroStrategy buy BTC?" type questions.',
+    description: 'Get the Bitcoin purchase history for a specific public company - dates, BTC acquired, cost, and holdings after each buy, newest first. Use for "When did MicroStrategy buy BTC?" type questions.',
     parameters: {
       type: 'OBJECT',
       properties: {
-        ticker: { type: 'STRING', description: 'Stock ticker, e.g. MSTR, MARA, RIOT.' }
+        ticker: { type: 'STRING', description: 'Stock ticker, e.g. MSTR, MARA, RIOT.' },
+        limit: { type: 'NUMBER', description: 'Number of purchases, default 20, max 100.' }
       },
       required: ['ticker']
     }
@@ -157,17 +169,18 @@ const allDeclarations = [
   },
   {
     name: 'get_fundraising_overview',
-    description: 'Get recent crypto project fundraising and VC investment rounds - shows which projects raised money, how much, and from whom. Use for VC/funding/investment questions.',
+    description: 'Get a crypto project fundraising history - rounds, amounts, dates, valuation, lead and other investors, and team. Pass the project (a token like "Solana" or a project name). Without a project it returns recent fundraising headlines. Use for VC/funding/investor questions.',
     parameters: {
       type: 'OBJECT',
       properties: {
-        limit: { type: 'NUMBER', description: 'Number of projects to return, default 10, max 20.' }
+        project: { type: 'STRING', description: 'Project or token name, e.g. "EigenLayer", "Solana", "Monad". Omit for recent fundraising headlines.' },
+        limit: { type: 'NUMBER', description: 'Headlines to return when no project is given, default 8, max 10.' }
       }
     }
   },
   {
     name: 'get_token_economics',
-    description: 'Get token economics / tokenomics for a crypto asset - circulating supply, total supply, max supply, and historical supply data. Use when the user asks about tokenomics, supply, inflation, or token distribution.',
+    description: 'Get token economics / tokenomics for a crypto asset - circulating, total and max supply, FDV, token allocation by holder, unlocked vs locked amounts, upcoming token unlocks, and recent supply history. Use when the user asks about tokenomics, supply, inflation, unlocks, vesting, or token distribution.',
     parameters: {
       type: 'OBJECT',
       properties: {
@@ -178,7 +191,7 @@ const allDeclarations = [
   },
   {
     name: 'get_trading_pairs',
-    description: 'Get trading pairs and exchange listings for a crypto asset - shows which exchanges list the asset and with what quote currencies. Use when the user asks about where to buy/trade an asset or its liquidity.',
+    description: 'Get the top trading pairs for a crypto asset across exchanges - exchange, pair, price, 24h volume, and order-book depth (USD needed to move the price up or down). Use when the user asks where an asset trades or about its liquidity.',
     parameters: {
       type: 'OBJECT',
       properties: {
@@ -194,22 +207,48 @@ const allDeclarations = [
     parameters: {
       type: 'OBJECT',
       properties: {
-        ticker: { type: 'STRING', description: 'Optional specific index ticker. If omitted, returns the full index list.' }
+        ticker: { type: 'STRING', description: 'Optional index ticker: ssimag7, ssiDeFi, ssiAI, ssiMeme, ssiLayer1, ssiLayer2, ssiRWA, ssiDePIN, ssiGameFi, ssiSocialFi, ssiNFT, ssiCeFi, ssiPayFi. Returns 24h/7d/1m/3m/1y/YTD returns and constituent weights. If omitted, returns the index list.' }
       }
     }
   },
-  // PARKED: get_analysis_charts — no routing rule, no eval coverage, no UI use case.
-  // Executor code preserved in custom.js. Uncomment after collecting observability data.
   {
-    name: 'get_macro_event_history',
-    description: 'Get historical data for a specific macroeconomic indicator - CPI readings over time, Fed Funds Rate changes, unemployment data, etc. Use when the user asks about historical macro data or trends for specific economic indicators.',
+    name: 'get_analysis_chart',
+    description: 'Get a SoSoValue on-chain / derivatives / sentiment time series, newest first, with the change over the period. Charts: fgi_indicator (Crypto Fear & Greed), futures_open_interest, funding_rate, binance_btcusdt_futures_long_short_ratio_1d, bitcoin_futures_volume_open_interest, stablecoin_total_market_cap, total_crypto_market_cap, altcoin_market_cap_volume, total_crypto_spot_btc_eth_etf_fund_flow_1d, usd_inflows_into_cryptocurrency_markets, btc_hashrate, btc_mining_difficulty, btc_miner_revenue, btc_active_addresses, btc_new_addresses, btc_transactions, ahr_999_indicator, eth_staking_ratio, eth_staking_amount, tvl_of_different_type_of_chain. Use for fear & greed, open interest, funding, long/short, stablecoin supply, hashrate, on-chain activity or staking questions.',
     parameters: {
       type: 'OBJECT',
       properties: {
-        event: { type: 'STRING', description: 'The macro event identifier, e.g. cpi, fed-funds-rate, unemployment, pmi, gdp.' },
-        limit: { type: 'NUMBER', description: 'Number of historical data points, default 10, max 24.' }
+        chart: { type: 'STRING', description: 'Chart name from the list, e.g. fgi_indicator, funding_rate, futures_open_interest.' },
+        limit: { type: 'NUMBER', description: 'Number of most recent data points, default 14, max 90.' }
+      },
+      required: ['chart']
+    }
+  },
+  {
+    name: 'get_macro_event_history',
+    description: 'Get the release history of a US macroeconomic indicator - actual vs forecast vs previous, newest first, with the surprise vs forecast. Use when the user asks about historical macro data or trends for a specific economic indicator.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        event: { type: 'STRING', description: 'Indicator name as SoSoValue lists it: "CPI (YoY)", "CPI (MoM)", "Core CPI (YoY)", "PPI (MoM)", "Core PCE Price Index (YoY)", "Nonfarm Payrolls", "Initial Jobless Claims", "GDP (QoQ)", "Retail Sales (MoM)", "S&P Global US Manufacturing PMI", "S&P Global Services PMI". Short forms like cpi, pce, nfp, gdp also work.' },
+        limit: { type: 'NUMBER', description: 'Number of releases, default 10, max 24.' }
       },
       required: ['event']
+    }
+  },
+  {
+    name: 'get_fed_rate_outlook',
+    description: 'Get market-implied FOMC target-rate probabilities for the next Fed meetings (the most likely rate range and its probability per meeting) plus the latest US money-market rates (SOFR, TGCR, BGCR, ON RRP). Use for Fed rate cut/hike odds, FOMC expectations, or interest-rate questions.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {}
+    }
+  },
+  {
+    name: 'get_crypto_market_overview',
+    description: 'Get the headline crypto market numbers right now: total crypto market cap and its 24h change, total 24h volume, ETH gas (gwei) and BTC fees (sat/vB). Use for "how big is the crypto market", total market cap, or gas/fee questions.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {}
     }
   },
   {

@@ -40,7 +40,13 @@ const toolWeight = (tool) => {
       return 0.75;
     case 'get_asset_news_brief':
     case 'get_hot_news_digest':
+    case 'search_crypto_news':
       return 0.55;
+    case 'get_crypto_market_overview':
+      return 0.85;
+    case 'get_analysis_chart':
+    case 'get_fed_rate_outlook':
+      return 0.6;
     case 'get_macro_event_history':
       return 0.65;
     case 'get_wallet_holdings':

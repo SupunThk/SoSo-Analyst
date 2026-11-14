@@ -2,16 +2,18 @@ import axios from 'axios';
 import { asArray, normalizeLookupValue } from '../normalizers/toolResult.ts';
 import { getPositiveInteger, sleep } from '../utils/common.ts';
 
+// SoSoValue Open API v1: https://sosovalue-1.gitbook.io/sosovalue-api-doc
+// Auth is the x-soso-api-key header. Documented limits: 20 requests/minute and
+// 100k/month per key, so responses are cached and 429s fall back to stale data.
 const CURRENCY_CACHE_TTL_MS = 10 * 60 * 1000;
 const SOSO_ROOT_BASE = 'https://openapi.sosovalue.com';
 const SOSO_OPENAPI_BASE = `${SOSO_ROOT_BASE}/openapi/v1`;
-const SOSO_OPENAPI_V2_BASE = `${SOSO_ROOT_BASE}/openapi/v2`;
-const SOSO_API_BASE = 'https://openapi.sosovalue.com/api/v1';
-
 
 const SOSO_REQUEST_TIMEOUT_MS = getPositiveInteger(process.env.SOSO_REQUEST_TIMEOUT_MS, 15000);
 const SOSO_RATE_LIMIT_RETRIES = getPositiveInteger(process.env.SOSO_RATE_LIMIT_RETRIES, 2);
 const SOSO_RATE_LIMIT_RETRY_DELAY_MS = getPositiveInteger(process.env.SOSO_RATE_LIMIT_RETRY_DELAY_MS, 800);
+// A rate-limit wait longer than this fails fast instead of stalling a chat reply.
+const SOSO_MAX_RETRY_WAIT_MS = getPositiveInteger(process.env.SOSO_MAX_RETRY_WAIT_MS, 5000);
 const SOSO_STALE_CACHE_TTL_MS = getPositiveInteger(process.env.SOSO_STALE_CACHE_TTL_MS, 10 * 60 * 1000);
 const STALE_CACHE_MAX_KEYS = getPositiveInteger(process.env.SOSO_STALE_CACHE_MAX_KEYS, 500);
 
@@ -22,8 +24,9 @@ let currencyCatalogCache = {
 
 const assertSosoSuccess = (payload) => {
   if (payload && Object.prototype.hasOwnProperty.call(payload, 'code') && Number(payload.code) !== 0) {
-    throw Object.assign(new Error(payload.msg || payload.message || `SoSoValue API returned code ${payload.code}`), {
+    throw Object.assign(new Error(payload.message || payload.msg || `SoSoValue API returned code ${payload.code}`), {
       sosoCode: payload.code,
+      details: payload.details,
       traceId: payload.traceId
     });
   }
@@ -69,13 +72,7 @@ const getCurrencyCatalog = async () => {
     return currencyCatalogCache.records;
   }
 
-  let response;
-  try {
-    response = await sosoPost('/data/default/coin/list', {}, SOSO_OPENAPI_BASE);
-  } catch {
-    response = await sosoGet('/currencies');
-  }
-
+  const response = await sosoGet('/currencies');
   const records = asArray(response.data).map(normalizeCurrencyRecord);
   currencyCatalogCache = {
     records,
@@ -101,10 +98,18 @@ const stableStringify = (value) => {
   ).join(',')}}`;
 };
 
+// 429 bodies carry details.retry_after (seconds); headers carry Retry-After or
+// X-RateLimit-Reset (epoch ms).
 const getRetryDelayMs = (error, attempt) => {
-  const retryAfter = Number(error.response?.headers?.['retry-after']);
+  const headers = error.response?.headers || {};
+  const retryAfter = Number(error.response?.data?.details?.retry_after ?? headers['retry-after']);
   if (Number.isFinite(retryAfter) && retryAfter > 0) {
     return retryAfter * 1000;
+  }
+
+  const resetAt = Number(headers['x-ratelimit-reset']);
+  if (Number.isFinite(resetAt) && resetAt > Date.now()) {
+    return resetAt - Date.now();
   }
 
   return SOSO_RATE_LIMIT_RETRY_DELAY_MS * (attempt + 1);
@@ -156,11 +161,12 @@ const cachedSosoRequest = async (cacheKey, requestFn) => {
           }
         }
 
-        if (!isRateLimitError(error) || attempt === SOSO_RATE_LIMIT_RETRIES) {
+        const delayMs = isRateLimitError(error) ? getRetryDelayMs(error, attempt) : 0;
+        if (!isRateLimitError(error) || attempt === SOSO_RATE_LIMIT_RETRIES || delayMs > SOSO_MAX_RETRY_WAIT_MS) {
           throw error;
         }
 
-        await sleep(getRetryDelayMs(error, attempt));
+        await sleep(delayMs);
       }
     }
 
@@ -186,18 +192,6 @@ const sosoGet = async (path, params: Record<string, any> = {}, baseUrl = SOSO_OP
   }));
 };
 
-const sosoPost = async (path, body: Record<string, any> = {}, baseUrl = SOSO_OPENAPI_BASE) => {
-  const cacheKey = `POST:${baseUrl}${path}:${stableStringify(body)}`;
-
-  return cachedSosoRequest(cacheKey, () => axios.post(`${baseUrl}${path}`, body, {
-    headers: {
-      'Content-Type': 'application/json',
-      'x-soso-api-key': process.env.SOSO_API_KEY
-    },
-    timeout: SOSO_REQUEST_TIMEOUT_MS,
-    transformResponse: [parseSosoJsonPreservingLargeIds]
-  }));
-};
 
 const clearSosoCaches = () => {
   apiCache.flushAll();
@@ -256,9 +250,7 @@ const normalizeEtfAssetSymbol = (value) => {
 const formatEtfCountryCode = (value) => (String(value || 'US').trim().toUpperCase() || 'US');
 
 export {
-  SOSO_API_BASE,
   SOSO_OPENAPI_BASE,
-  SOSO_OPENAPI_V2_BASE,
   SOSO_ROOT_BASE,
   clearSosoCaches,
   formatEtfCountryCode,
@@ -267,6 +259,5 @@ export {
   parseSosoJsonPreservingLargeIds,
   resolveCurrencyId,
   resolveCurrencyMatches,
-  sosoGet,
-  sosoPost
+  sosoGet
 };

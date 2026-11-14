@@ -104,8 +104,10 @@ const analyzeNews = (toolName, data) => {
 };
 
 const analyzeMacroEventHistory = (toolName, data) => {
+  // History is newest first and can lead with scheduled releases that have no
+  // actual yet; score the most recent released figure.
   const history = asArray(data?.history);
-  const latest = history.length ? history[history.length - 1] : {};
+  const latest = history.find((row) => getFirstNumber(row.actual) !== null) || history[0] || {};
   const event = String(data?.event || '').toLowerCase();
   const actual = getFirstNumber(latest.actual);
   const forecast = getFirstNumber(latest.forecast);
@@ -113,8 +115,8 @@ const analyzeMacroEventHistory = (toolName, data) => {
 
   let score = 50;
   const scoreBreakdown = [makeBreakdown('base', 50, 'Neutral starting score.')];
-  const inflationLike = event.includes('cpi') || event.includes('inflation') || event.includes('rate');
-  const growthLike = event.includes('gdp') || event.includes('pmi');
+  const inflationLike = ['cpi', 'pce', 'ppi', 'inflation', 'rate'].some((key) => event.includes(key));
+  const growthLike = ['gdp', 'pmi', 'payrolls', 'retail sales'].some((key) => event.includes(key));
   if (surprise !== null && inflationLike) {
     const impact = surprise < 0 ? 10 : surprise > 0 ? -10 : 0;
     score += impact;
@@ -143,6 +145,7 @@ const analyzeMacroEventHistory = (toolName, data) => {
     metrics: {
       event: data?.event || null,
       dataPoints: history.length,
+      latestDate: latest.date || null,
       latestActual: actual,
       latestForecast: forecast,
       latestSurprise: round(surprise)

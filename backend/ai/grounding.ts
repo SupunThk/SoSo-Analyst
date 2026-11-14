@@ -138,6 +138,10 @@ const buildPartialFailureNote = (toolCalls) => {
     get_btc_treasury_brief: 'BTC Treasury',
     get_btc_purchase_history_brief: 'BTC Purchase History',
     get_fundraising_overview: 'Fundraising',
+    search_crypto_news: 'News Search',
+    get_analysis_chart: 'Analysis Chart',
+    get_fed_rate_outlook: 'Fed Rate Outlook',
+    get_crypto_market_overview: 'Crypto Market Overview',
     compare_assets: 'Asset Comparison'
   };
 

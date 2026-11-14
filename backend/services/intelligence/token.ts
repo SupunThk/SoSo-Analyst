@@ -1,6 +1,5 @@
 // Token intelligence: per-asset snapshot, klines, news and SoDEX context (cached).
 import {
-  SOSO_API_BASE,
   resolveCurrencyId,
   sosoGet
 } from '../../clients/soso.ts';
@@ -28,7 +27,7 @@ const TOKEN_CACHE_MAX_KEYS = Number(process.env.MARKET_TOKEN_CACHE_MAX_KEYS) || 
 
 const analyzeKlines = (klines) => {
   const rows = asArray(klines).map((row) => ({
-    date: row.date || row.time || row.t,
+    date: row.timestamp ? new Date(Number(row.timestamp)).toISOString().slice(0, 10) : (row.date || row.time || row.t),
     open: toNumber(row.open ?? row.o),
     high: toNumber(row.high ?? row.h),
     low: toNumber(row.low ?? row.l),
@@ -72,11 +71,12 @@ const buildTokenIntelligencePayload = async (assetQuery) => {
   const [snapshotReq, klinesReq, newsReq, market] = await Promise.all([
     safeRequest('tokenSnapshot', () => sosoGet(`/currencies/${assetRecord.currency_id}/market-snapshot`)),
     safeRequest('tokenKlines', () => sosoGet(`/currencies/${assetRecord.currency_id}/klines`, { interval: '1d', limit: 30 })),
-    safeRequest('tokenNews', () => sosoGet('/news/featured/currency', {
-      currencyId: assetRecord.currency_id,
-      pageNum: 1,
-      pageSize: 5
-    }, SOSO_API_BASE)),
+    safeRequest('tokenNews', () => sosoGet('/news', {
+      currency_id: assetRecord.currency_id,
+      page: 1,
+      page_size: 5,
+      language: 'en'
+    })),
     buildMarketIntelligence()
   ]);
 
@@ -127,7 +127,7 @@ const buildTokenIntelligencePayload = async (assetQuery) => {
     sodexMarket.perps?.spreadPct !== null
       ? `SoDEX ${sodexMarket.perps.symbol} spread is ${formatPct(sodexMarket.perps.spreadPct)} with funding at ${formatPct(sodexMarket.perps.fundingRatePct)}.`
       : null,
-    news[0]?.title ? `Latest featured headline: ${news[0].title}` : null
+    news[0]?.title ? `Latest headline: ${news[0].title}` : null
   ].filter(Boolean).slice(0, 6);
 
   return {

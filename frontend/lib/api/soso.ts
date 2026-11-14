@@ -44,55 +44,36 @@ export async function fetchSosoHotNews(signal?: AbortSignal): Promise<unknown> {
 
 export async function fetchSosoETFSummary(signal?: AbortSignal): Promise<SosoEtfSummary> {
   return readCachedRequest(etfSummaryCache, SOSO_CLIENT_CACHE_MS, async (s?: AbortSignal) => {
-    let btcRaw: unknown = null;
-    try {
-      const btcRes = await fetch(apiUrl('/api/soso/etfs/current-data-metrics'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'us-btc-spot' }),
-        signal: s
-      });
-      btcRaw = await readJson<unknown>(btcRes);
-    } catch (err) {
-      if (isAbortError(err)) throw err;
-      console.error("Failed to fetch BTC ETF data:", err);
-    }
-    
-    let ethRaw: unknown = null;
-    try {
-      const ethRes = await fetch(apiUrl('/api/soso/etfs/current-data-metrics'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'us-eth-spot' }),
-        signal: s
-      });
-      ethRaw = await readJson<unknown>(ethRes);
-    } catch (err) {
-      if (isAbortError(err)) throw err;
-      // ETH endpoint may not be supported by SoSoValue yet
-    }
-
-    const extractField = (payload: unknown, ...keys: string[]) => {
-      if (!isRecord(payload)) return null;
-      const nested = isRecord(payload.data) ? payload.data : null;
-
-      for (const key of keys) {
-        const nestedValue = nested?.[key];
-        const directValue = payload[key];
-        const parsed = toFiniteNumber(unwrapMetricValue(nestedValue ?? directValue));
-        if (parsed !== null) return parsed;
+    // Latest row of the US spot ETF aggregate history (GET /etfs/summary-history).
+    const fetchLatestSummary = async (symbol: 'BTC' | 'ETH'): Promise<unknown> => {
+      try {
+        const res = await fetch(
+          apiUrl(`/api/soso/etfs/summary-history?symbol=${symbol}&country_code=US&limit=1`),
+          { signal: s }
+        );
+        return await readJson<unknown>(res);
+      } catch (err) {
+        if (isAbortError(err)) throw err;
+        console.error(`Failed to fetch ${symbol} ETF data:`, err);
+        return null;
       }
+    };
 
-      return null;
+    const [btcRaw, ethRaw] = await Promise.all([fetchLatestSummary('BTC'), fetchLatestSummary('ETH')]);
+
+    const extractField = (payload: unknown, key: string) => {
+      if (!isRecord(payload) || !Array.isArray(payload.data)) return null;
+      const latest = payload.data[0];
+      return isRecord(latest) ? toFiniteNumber(unwrapMetricValue(latest[key])) : null;
     };
 
     return {
-      btcDailyNetInflow: extractField(btcRaw, 'totalNetInflow', 'dailyNetInflow', 'netInflow', 'todayNetInflow'),
-      btcTotalNetAssets: extractField(btcRaw, 'totalNetAssets', 'netAssets', 'aum', 'totalAum'),
-      btcTotalVolume: extractField(btcRaw, 'dailyTotalValueTraded', 'totalValueTraded', 'totalVolume', 'volume', 'tradingVolume'),
-      ethDailyNetInflow: extractField(ethRaw, 'totalNetInflow', 'dailyNetInflow', 'netInflow', 'todayNetInflow'),
-      ethTotalNetAssets: extractField(ethRaw, 'totalNetAssets', 'netAssets', 'aum', 'totalAum'),
-      ethTotalVolume: extractField(ethRaw, 'dailyTotalValueTraded', 'totalValueTraded', 'totalVolume', 'volume', 'tradingVolume'),
+      btcDailyNetInflow: extractField(btcRaw, 'total_net_inflow'),
+      btcTotalNetAssets: extractField(btcRaw, 'total_net_assets'),
+      btcTotalVolume: extractField(btcRaw, 'total_value_traded'),
+      ethDailyNetInflow: extractField(ethRaw, 'total_net_inflow'),
+      ethTotalNetAssets: extractField(ethRaw, 'total_net_assets'),
+      ethTotalVolume: extractField(ethRaw, 'total_value_traded'),
       // Pass through raw data for debugging
       _btcRaw: btcRaw,
       _ethRaw: ethRaw,

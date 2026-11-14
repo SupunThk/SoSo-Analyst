@@ -40,7 +40,7 @@ const ROUTING_RULES = [
   {
     intent: 'market_overview',
     pattern: /\b(market overview|market status|(?:status|state) of the (?:crypto )?market|what(?:'s| is) happening|hot(?:test)? (?:\w+ )*news|crypto news today|full market|market update|latest (?:crypto |market )?news|news stories)\b/i,
-    tools: ['get_market_intelligence', 'get_hot_news_digest', 'get_macro_crypto_calendar'],
+    tools: ['get_market_intelligence', 'get_hot_news_digest', 'get_macro_crypto_calendar', 'get_crypto_market_overview'],
     budget: 'market',
     followUp: 'Separate market price, sector, news, and macro evidence; avoid a single broad sentiment paragraph.'
   },
@@ -74,10 +74,10 @@ const ROUTING_RULES = [
   },
   {
     intent: 'tokenomics',
-    pattern: /\b(tokenomics|circulating supply|max supply|inflation rate|token distribution|supply ratio)\b/i,
+    pattern: /\b(tokenomics|circulating supply|max supply|inflation rate|token distribution|supply ratio|token unlocks?|unlock schedule|vesting|token allocation)\b/i,
     tools: ['get_token_economics'],
     budget: 'simple',
-    followUp: 'Report circulating supply, total supply, max supply, supply ratio, and inflation status. Use supplyHistory if available.'
+    followUp: 'Report circulating supply, total supply, max supply, supply ratio, and inflation status, then allocation and upcoming unlocks when returned. Use supplyHistory if available.'
   },
   {
     intent: 'index_overview',
@@ -94,9 +94,16 @@ const ROUTING_RULES = [
     followUp: 'Lead with period change, volatility, high/low, and current snapshot values.'
   },
   {
+    intent: 'fed_rates',
+    pattern: /\b(rate cuts?|rate hikes?|cut rates|hike rates|fed ?watch|fomc (?:odds|probabilit\w*|expectations?|meeting)|fed (?:odds|expectations?|meeting)|interest rates?|sofr)\b/i,
+    tools: ['get_fed_rate_outlook', 'get_macro_crypto_calendar'],
+    budget: 'standard',
+    followUp: 'Lead with the most likely target-rate range and its probability for each upcoming FOMC meeting, then money-market rates. These are market-implied odds, not a forecast; say so.'
+  },
+  {
     intent: 'macro',
     pattern: /\b(macro|fomc|cpi|fed|economic calendar|rates|inflation|jobs|unemployment|pce)\b/i,
-    tools: ['get_macro_crypto_calendar', 'get_macro_event_history'],
+    tools: ['get_macro_crypto_calendar', 'get_macro_event_history', 'get_fed_rate_outlook'],
     budget: 'standard',
     followUp: 'Use dates, event names, actual/forecast/previous values, and state clearly when history is unavailable.'
   },
@@ -131,9 +138,9 @@ const ROUTING_RULES = [
   {
     intent: 'fundraising',
     pattern: /\b(fundraising|funding rounds?|vc|venture capital|investment rounds?|raised capital|raises funding)\b/i,
-    tools: ['get_fundraising_overview'],
+    tools: ['get_fundraising_overview', 'search_web'],
     budget: 'standard',
-    followUp: 'Report fundraising rounds as concrete rows: project, amount, investors, category, date if available, and market readthrough. Do not turn it into broad sentiment.'
+    followUp: 'Pass the project name when the user names one. Report fundraising rounds as concrete rows: round, amount, date, valuation, lead and other investors. Without a project, list the returned fundraising headlines. Do not turn it into broad sentiment.'
   },
   {
     intent: 'opportunity',
@@ -145,9 +152,30 @@ const ROUTING_RULES = [
   {
     intent: 'sentiment',
     pattern: /\b(sentiment|fear|greed|mood|feeling|vibes?|optimist|pessimist)\b/i,
-    tools: ['get_market_intelligence', 'get_hot_news_digest'],
+    tools: ['get_market_intelligence', 'get_hot_news_digest', 'get_analysis_chart'],
     budget: 'standard',
     followUp: 'Translate regime data and news sentiment into a clear sentiment reading. Use specific breadth, dispersion, and sector rotation data to support the reading.'
+  },
+  {
+    intent: 'derivatives_onchain',
+    pattern: /\b(open interest|funding rates?|long[/ -]?short|hash ?rate|mining difficulty|miner revenue|stablecoin (?:supply|market cap|mcap)|active addresses|new addresses|staking ratio|eth staking|ahr ?999|on[- ]chain (?:data|metrics|activity)|fear (?:and|&) greed)\b/i,
+    tools: ['get_analysis_chart'],
+    budget: 'simple',
+    followUp: 'Call get_analysis_chart with the matching chart name (fgi_indicator, funding_rate, futures_open_interest, binance_btcusdt_futures_long_short_ratio_1d, stablecoin_total_market_cap, btc_hashrate, ...). Report the latest value with its date, the change over the period, and what it implies. Price series in a chart are only an overlay.'
+  },
+  {
+    intent: 'news_search',
+    pattern: /\b(news|headlines?|articles?|coverage)\b.*\b(about|on|regarding|around|for)\b/i,
+    tools: ['search_crypto_news', 'get_asset_news_brief'],
+    budget: 'standard',
+    followUp: 'Search news for the subject the user named; for a single listed coin get_asset_news_brief also works. List the returned headlines with dates before any readthrough.'
+  },
+  {
+    intent: 'crypto_market_size',
+    pattern: /\b(total (?:crypto )?market cap|crypto market cap|size of the crypto market|market size|gas (?:fees?|prices?)|gwei|btc fees?|bitcoin fees?)\b/i,
+    tools: ['get_crypto_market_overview'],
+    budget: 'simple',
+    followUp: 'Report total crypto market cap with its 24h change, 24h volume, and ETH gas / BTC fee levels with the as-of time.'
   },
   {
     intent: 'sodex_analytics',
@@ -240,7 +268,11 @@ const REPORT_SHAPES = {
   asset_news: 'Asset news report: headline list first, then price context, asset-specific readthrough, risks, and what to watch next.',
   token_intelligence: 'Token intelligence report: why moving, live price/volume snapshot, BTC/ETH/sector relative performance, trend/liquidity context, returned headlines, and risks. Do not use generic market memory.',
   asset_deep_dive: 'Deep-dive report: thesis, price/trend evidence, news drivers, tokenomics/supply, liquidity/trading-pair context, risks, and verdict.',
-  tokenomics: 'Tokenomics report: circulating/total/max supply, supply ratio, remaining supply or inflation status, historical supply if available, and investor readthrough.',
+  tokenomics: 'Tokenomics report: circulating/total/max supply, supply ratio, remaining supply or inflation status, allocation and upcoming unlocks if returned, historical supply if available, and investor readthrough.',
+  fed_rates: 'Fed rates report: most likely target range and probability for each upcoming FOMC meeting, how odds are shifting across meetings, money-market rates, and crypto readthrough. Market-implied odds, not a forecast.',
+  derivatives_onchain: 'Metric report: latest value and date, change over the returned period, context for what the level means, and crypto readthrough.',
+  news_search: 'News report: returned headlines with dates and sources first, then a short readthrough grounded in them.',
+  crypto_market_size: 'Market size report: total market cap and 24h change, 24h volume, ETH gas and BTC fees, with the as-of time.',
   index_overview: 'Index report: ranked SoSoValue indices, recent performance, constituent highlights where returned, sector mapping, and rotation takeaway.',
   price_history: 'Price history report: period return, latest price, high/low, volatility, trend label, current snapshot, and what would confirm or invalidate the trend.',
   macro: 'Macro report: upcoming calendar items with dates, actual/forecast/previous values where available, expected crypto impact, and watch-next levels/events.',
@@ -248,7 +280,7 @@ const REPORT_SHAPES = {
   crypto_equities: 'Crypto equities report: watchlist table by ticker, price/24h move, market cap or volume if returned, link to BTC/crypto beta, and risk notes.',
   sector: 'Sector report: ranked sectors first, then leaders/laggards, key constituents or indices, evidence fields, risks, and rotation takeaway. If sector_spotlight is empty, use market-intelligence rotation, SSI index, or tracked-asset proxy rows and label the fallback scope.',
   top_movers: 'Movers report: ranked gainers/losers with exact percentage moves and prices, source scope, liquidity/volume context where available, and caution flags.',
-  fundraising: 'Fundraising report: ranked recent rounds with project, amount, investors, category, date if returned, and market readthrough.',
+  fundraising: 'Fundraising report: for a named project, its rounds (round, amount, date, valuation, investors) newest first and notable backers; otherwise the returned fundraising headlines. Then market readthrough.',
   opportunity: 'Opportunity report: ranked opportunities, score/evidence rows, supporting sector/news context, risks, and next trigger to monitor. Do not give generic neutral commentary.',
   sentiment: 'Sentiment report: regime/mood summary, supporting breadth and news evidence, conflicting signals, risk level, and what would shift sentiment.',
   sodex_analytics: 'SoDEX analytics report: total volume/pairs, most traded pairs, top gainers, top losers, tightest spreads, and exchange-scope caveat.',

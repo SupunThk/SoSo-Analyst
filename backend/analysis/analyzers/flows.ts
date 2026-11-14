@@ -111,7 +111,10 @@ const analyzeEtfFlows = (toolName, data) => {
 };
 
 const analyzeFundraisingOverview = (toolName, data) => {
-  const projects = asArray(data?.projects);
+  // One named project returns its rounds; without a project only headlines come back.
+  const projects = data?.project
+    ? asArray(data.rounds).map((round) => ({ ...round, name: data.project }))
+    : asArray(data?.projects);
   if (!projects.length) {
     return buildAnalysis({
       toolName,
@@ -119,7 +122,9 @@ const analyzeFundraisingOverview = (toolName, data) => {
       score: 50,
       riskScore: 42,
       confidence: 'low',
-      signals: ['No fundraising projects were returned.'],
+      signals: [asArray(data?.items).length
+        ? `Returned ${asArray(data.items).length} fundraising headlines; no round-level data without a named project.`
+        : 'No fundraising projects were returned.'],
       risks: [],
       metrics: { projectCount: 0, parsedAmountCount: 0, totalRaiseUsdEstimate: null },
       scoreBreakdown: [makeBreakdown('base', 50, 'No primary-market pipeline in payload.')],

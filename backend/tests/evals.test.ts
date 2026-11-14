@@ -90,7 +90,7 @@ const testToolRoutingContext = async () => {
   const fundraisingContext = buildToolRoutingContext('Show me recent crypto fundraising rounds and VC investments.', { routing: fundraisingRouting });
   const fundraisingText = fundraisingContext.content.parts[0].text;
   assert.match(fundraisingText, /Fundraising report/);
-  assert.match(fundraisingText, /project, amount, investors/);
+  assert.match(fundraisingText, /round, amount, date, valuation, investors/);
 };
 
 const testToolAllowlist = async () => {
@@ -129,7 +129,7 @@ const testToolAllowlist = async () => {
   assert.equal(standaloneHotNews.budget.max, 1);
 
   const marketOverviewReport = await getToolAllowlist('Give me a full market overview report - BTC price, top movers, sector trends, news, macro calendar, and strategic outlook.');
-  assert.deepEqual(marketOverviewReport.allowedFunctionNames, ['get_market_intelligence', 'get_hot_news_digest', 'get_macro_crypto_calendar']);
+  assert.deepEqual(marketOverviewReport.allowedFunctionNames, ['get_market_intelligence', 'get_hot_news_digest', 'get_macro_crypto_calendar', 'get_crypto_market_overview']);
   assert.equal(marketOverviewReport.budget.max, 3);
 
   const hotNewsReport = await getToolAllowlist('Give me a headline-first crypto news report: top stories, why each matters, market readthrough, and what to watch next.');
@@ -153,7 +153,7 @@ const testToolAllowlist = async () => {
   assert.equal(cryptoEquities.budget.max, 2);
 
   const fundraising = await getToolAllowlist('Show me recent crypto fundraising rounds and VC investments.');
-  assert.deepEqual(fundraising.allowedFunctionNames, ['get_fundraising_overview']);
+  assert.deepEqual(fundraising.allowedFunctionNames, ['get_fundraising_overview', 'search_web']);
   assert.equal(fundraising.budget.max, 2);
 };
 

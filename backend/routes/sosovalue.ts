@@ -1,11 +1,5 @@
 import express from 'express';
-import {
-  SOSO_API_BASE as API_V1_URL,
-  SOSO_OPENAPI_BASE as OPENAPI_V1_URL,
-  SOSO_OPENAPI_V2_BASE as OPENAPI_V2_URL,
-  sosoGet,
-  sosoPost
-} from '../clients/soso.ts';
+import { SOSO_OPENAPI_BASE as OPENAPI_V1_URL, sosoGet } from '../clients/soso.ts';
 import { getPositiveInteger, sleep } from '../utils/common.ts';
 
 const router = express.Router();
@@ -31,20 +25,28 @@ const INDEX_LABELS = {
   ssiLayer2: 'Layer 2'
 };
 
-const validateRouteParams = (req, res, next) => {
-  for (const [key, value] of Object.entries(req.params)) {
-    if (!SAFE_PARAM.test(String(value))) {
-      return res.status(400).json({
-        error: true,
-        message: `Invalid route parameter "${key}".`,
-        requestId: req.id
-      });
-    }
+// Macro event names are free text such as "CPI (YoY)" or "S&P Global Services PMI";
+// they are URL-encoded before use, so only the character set is restricted.
+const SAFE_EVENT_PARAM = /^[A-Za-z0-9 &()'.,-]{1,80}$/;
+
+// Path params are interpolated into the upstream URL, so each one is checked
+// here. (router.param runs once the route has matched; a router.use middleware
+// would see an empty req.params.)
+const validateParam = (pattern) => (req, res, next, value, name) => {
+  if (!pattern.test(String(value)) || String(value).includes('..')) {
+    return res.status(400).json({
+      error: true,
+      message: `Invalid route parameter "${name}".`,
+      requestId: req.id
+    });
   }
   next();
 };
 
-router.use(validateRouteParams);
+for (const name of ['id', 'ticker', 'chart_name', 'code']) {
+  router.param(name, validateParam(SAFE_PARAM));
+}
+router.param('event', validateParam(SAFE_EVENT_PARAM));
 
 const getPublicUpstreamError = (error) => {
   if (error.code === 'ECONNABORTED') {
@@ -106,16 +108,6 @@ const toNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const normalizeEtfType = (value) => {
-  const normalized = String(value || '').trim().toLowerCase();
-  if (normalized === 'btc' || normalized === 'bitcoin' || normalized === 'us-btc-spot') {
-    return 'us-btc-spot';
-  }
-  if (normalized === 'eth' || normalized === 'ethereum' || normalized === 'us-eth-spot') {
-    return 'us-eth-spot';
-  }
-  return value;
-};
 
 const getBoundedSnapshotLimit = (value) => {
   const parsed = Number(value);
@@ -161,8 +153,12 @@ const mergeIndexSnapshot = (summary, payload) => {
 
 const sosoRequest = async (path, req, res, baseUrl = OPENAPI_V1_URL) => {
   try {
-    // Only allow specific query parameters to be passed to the external API
-    const allowedParams = ['pageNum', 'pageSize', 'ticker', 'symbol', 'country_code', 'days', 'interval', 'limit', 'chart_name', 'event', 'query', 'currencyId', 'categoryList', 'type'];
+    // Only the query parameters documented by the SoSoValue Open API pass through.
+    const allowedParams = [
+      'page', 'page_size', 'limit', 'interval', 'start_time', 'end_time', 'start_date', 'end_date',
+      'symbol', 'country_code', 'currency_id', 'project_id', 'keyword', 'category', 'language',
+      'exchange', 'order_by', 'order'
+    ];
     const filteredQuery = {};
     
     for (const key of allowedParams) {
@@ -178,25 +174,6 @@ const sosoRequest = async (path, req, res, baseUrl = OPENAPI_V1_URL) => {
   }
 };
 
-const sosoPostRequest = async (path, req, res, baseUrl = OPENAPI_V1_URL) => {
-  try {
-    const allowedBodyParams = ['type'];
-    const filteredBody = {};
-
-    for (const key of allowedBodyParams) {
-      if (req.body?.[key] !== undefined) {
-        filteredBody[key] = path.startsWith('/etf/') && key === 'type'
-          ? normalizeEtfType(req.body[key])
-          : req.body[key];
-      }
-    }
-
-    const data = await sosoPost(path, filteredBody, baseUrl);
-    res.json(data);
-  } catch (error) {
-    sendPublicUpstreamError(error, req, res, path, baseUrl);
-  }
-};
 
 const sosoIndicesOverview = async (req, res) => {
   const snapshotLimit = getBoundedSnapshotLimit(req.query.snapshotLimit);
@@ -231,11 +208,10 @@ const sosoIndicesOverview = async (req, res) => {
   }
 };
 
-// Official documented endpoints
-router.post('/coins/list', (req, res) => sosoPostRequest('/data/default/coin/list', req, res));
-router.post('/data/default/coin/list', (req, res) => sosoPostRequest('/data/default/coin/list', req, res));
-router.post('/etfs/historical-inflow-chart', (req, res) => sosoPostRequest('/etf/historicalInflowChart', req, res, OPENAPI_V2_URL));
-router.post('/etfs/current-data-metrics', (req, res) => sosoPostRequest('/etf/currentEtfDataMetrics', req, res, OPENAPI_V2_URL));
+// Proxies for the SoSoValue Open API v1 (https://sosovalue-1.gitbook.io/sosovalue-api-doc).
+
+// Market overview
+router.get('/market/overview', (req, res) => sosoRequest('/market/overview', req, res));
 
 // Currencies
 router.get('/currencies', (req, res) => sosoRequest('/currencies', req, res));
@@ -245,6 +221,8 @@ router.get('/currencies/:id/market-snapshot', (req, res) => sosoRequest(`/curren
 router.get('/currencies/:id/klines', (req, res) => sosoRequest(`/currencies/${req.params.id}/klines`, req, res));
 router.get('/currencies/:id/supply', (req, res) => sosoRequest(`/currencies/${req.params.id}/supply`, req, res));
 router.get('/currencies/:id/pairs', (req, res) => sosoRequest(`/currencies/${req.params.id}/pairs`, req, res));
+router.get('/currencies/:id/token-economics', (req, res) => sosoRequest(`/currencies/${req.params.id}/token-economics`, req, res));
+router.get('/currencies/:id/fundraising', (req, res) => sosoRequest(`/currencies/${req.params.id}/fundraising`, req, res));
 
 // ETFs
 router.get('/etfs/summary-history', (req, res) => sosoRequest('/etfs/summary-history', req, res));
@@ -261,7 +239,6 @@ router.get('/indices/:ticker/klines', (req, res) => sosoRequest(`/indices/${req.
 
 // Crypto Stocks
 router.get('/crypto-stocks', (req, res) => sosoRequest('/crypto-stocks', req, res));
-router.get('/crypto-stocks/sector', (req, res) => sosoRequest('/crypto-stocks/sector', req, res));
 router.get('/crypto-stocks/:ticker/market-snapshot', (req, res) => sosoRequest(`/crypto-stocks/${req.params.ticker}/market-snapshot`, req, res));
 router.get('/crypto-stocks/:ticker/market-cap', (req, res) => sosoRequest(`/crypto-stocks/${req.params.ticker}/market-cap`, req, res));
 router.get('/crypto-stocks/:ticker/klines', (req, res) => sosoRequest(`/crypto-stocks/${req.params.ticker}/klines`, req, res));
@@ -273,9 +250,9 @@ router.get('/btc-treasuries/:ticker/purchase-history', (req, res) => sosoRequest
 // News
 router.get('/news', (req, res) => sosoRequest('/news', req, res));
 router.get('/news/hot', (req, res) => sosoRequest('/news/hot', req, res));
-router.get('/news/featured', (req, res) => sosoRequest('/news/featured', req, res, API_V1_URL));
-router.get('/news/featured/currency', (req, res) => sosoRequest('/news/featured/currency', req, res, API_V1_URL));
+router.get('/news/pick', (req, res) => sosoRequest('/news/pick', req, res));
 router.get('/news/search', (req, res) => sosoRequest('/news/search', req, res));
+router.get('/podcasts/:id', (req, res) => sosoRequest(`/podcasts/${req.params.id}`, req, res));
 
 // Fundraising
 router.get('/fundraising/projects', (req, res) => sosoRequest('/fundraising/projects', req, res));
@@ -283,7 +260,10 @@ router.get('/fundraising/projects/:id', (req, res) => sosoRequest(`/fundraising/
 
 // Macro
 router.get('/macro/events', (req, res) => sosoRequest('/macro/events', req, res));
-router.get('/macro/events/:event/history', (req, res) => sosoRequest(`/macro/events/${req.params.event}/history`, req, res));
+router.get('/macro/events/:event/history', (req, res) => sosoRequest(`/macro/events/${encodeURIComponent(req.params.event)}/history`, req, res));
+router.get('/macro/rates', (req, res) => sosoRequest('/macro/rates', req, res));
+router.get('/macro/rates/:code/history', (req, res) => sosoRequest(`/macro/rates/${req.params.code}/history`, req, res));
+router.get('/macro/fomc-probabilities', (req, res) => sosoRequest('/macro/fomc-probabilities', req, res));
 
 // Analyses
 router.get('/analyses', (req, res) => sosoRequest('/analyses', req, res));

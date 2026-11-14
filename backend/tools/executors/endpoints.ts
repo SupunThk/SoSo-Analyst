@@ -10,7 +10,7 @@ const TOOL_ENDPOINTS = {
   },
   get_etf_summary_history: {
     buildUrl: () => '/etfs/summary-history',
-    defaultParams: { days: 30 }
+    defaultParams: { limit: 30 }
   },
   get_etf_snapshot: {
     buildUrl: (args) => `/etfs/${args.ticker}/market-snapshot`
@@ -22,7 +22,9 @@ const TOOL_ENDPOINTS = {
     buildUrl: () => '/news/hot'
   },
   get_featured_news: {
-    buildUrl: () => '/news/featured'
+    // Editor-picked news (the old /news/featured path no longer exists).
+    buildUrl: () => '/news/pick',
+    defaultParams: { page: 1, page_size: 20 }
   },
   search_news: {
     buildUrl: () => '/news/search'
@@ -40,7 +42,7 @@ const TOOL_ENDPOINTS = {
   get_crypto_stock_snapshot: {
     buildUrl: (args) => `/crypto-stocks/${args.ticker}/market-snapshot`
   },
-  // get_sector_spotlight and get_fundraising_projects are handled by custom executors in custom.js
+  // Model-facing tools are custom executors in custom.ts; these are direct endpoint wrappers.
 };
 
 export { TOOL_ENDPOINTS };

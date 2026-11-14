@@ -181,11 +181,14 @@ const buildEvidenceFacts = (toolName, args, data, analysis) => {
       facts.push(`asset: ${asset.name || args?.asset || 'unknown'}${asset.symbol ? ` (${asset.symbol})` : ''}`);
       pushFact(facts, 'price', snapshot.price);
       pushFact(facts, '24h change', snapshot.change_pct_24h, '%');
-      pushFact(facts, '7d change', snapshot.change_pct_7d, '%');
-      pushFact(facts, '30d change', snapshot.change_pct_30d, '%');
+      pushFact(facts, '24h high', snapshot.high_24h);
+      pushFact(facts, '24h low', snapshot.low_24h);
       pushFact(facts, 'market cap', snapshot.market_cap);
+      pushFact(facts, 'fully diluted valuation', snapshot.fdv);
       pushFact(facts, '24h volume', snapshot.volume_24h);
       pushFact(facts, 'market cap rank', snapshot.market_cap_rank);
+      pushFact(facts, 'all-time high', snapshot.ath);
+      pushFact(facts, 'below all-time high', snapshot.ath_change_pct, '%');
       break;
     }
     case 'get_asset_price_history': {
@@ -244,7 +247,8 @@ const buildEvidenceFacts = (toolName, args, data, analysis) => {
       break;
     }
     case 'get_asset_news_brief':
-    case 'get_hot_news_digest': {
+    case 'get_hot_news_digest':
+    case 'search_crypto_news': {
       const items = asArray(data?.items);
       pushFact(facts, 'news items returned', items.length);
       items.slice(0, 5).forEach((item, index) => {
@@ -271,6 +275,48 @@ const buildEvidenceFacts = (toolName, args, data, analysis) => {
       pushFact(facts, 'supply ratio', tokenomics.supply_ratio);
       pushFact(facts, 'remaining supply', tokenomics.remaining_supply);
       pushFact(facts, 'inflationary', tokenomics.is_inflationary);
+      pushFact(facts, 'fully diluted valuation', tokenomics.fdv);
+      asArray(data?.allocation).slice(0, 5).forEach((a) => facts.push(`allocation: ${a.holder} ${a.percentage ?? 'N/A'}%`));
+      pushFact(facts, 'unlocked amount', data?.unlockStatus?.unlocked);
+      pushFact(facts, 'still locked amount', data?.unlockStatus?.totalLocked);
+      asArray(data?.upcomingUnlocks).slice(0, 3).forEach((u, index) => facts.push(`upcoming unlock ${index + 1}: ${u.date} amount=${u.totalAmount} (${asArray(u.vestings).map((v) => v.label).join(', ')})`));
+      break;
+    }
+    case 'get_fundraising_overview': {
+      if (data?.project) {
+        pushFact(facts, 'project', data.project);
+        pushFact(facts, 'funding rounds', data.roundCount);
+        asArray(data.rounds).slice(0, 5).forEach((r, index) => facts.push(`round ${index + 1}: ${r.round || 'round'} ${r.amount || 'undisclosed'} on ${r.date || 'unknown date'}${asArray(r.investors).length ? ` investors: ${asArray(r.investors).join(', ')}` : ''}`));
+      } else {
+        asArray(data?.items).slice(0, 5).forEach((item, index) => facts.push(`fundraising headline ${index + 1}: ${item.title || 'untitled'}`));
+      }
+      break;
+    }
+    case 'get_analysis_chart': {
+      pushFact(facts, 'chart', data?.chart);
+      pushFact(facts, 'latest date', data?.latest?.date);
+      Object.entries(data?.changeOverPeriod || {}).slice(0, 6).forEach(([key, value]: [string, any]) => {
+        facts.push(`${key}: latest=${value.latest}, earliest in period=${value.earliest}, change=${value.change}`);
+      });
+      break;
+    }
+    case 'get_macro_crypto_calendar': {
+      pushFact(facts, 'window', data?.from && data?.to ? `${data.from} to ${data.to}` : null);
+      asArray(data?.events).slice(0, 8).forEach((day) => facts.push(`${day.date}: ${asArray(day.events).join(', ')}`));
+      break;
+    }
+    case 'get_fed_rate_outlook': {
+      asArray(data?.upcomingMeetings).slice(0, 4).forEach((m) => facts.push(`FOMC ${m.meetingDate}: most likely ${m.mostLikelyRange ?? 'N/A'} (${m.mostLikelyProbabilityPct ?? 'N/A'}%)`));
+      asArray(data?.moneyMarketRates).forEach((r) => facts.push(`${r.name || r.code}: ${r.latestValue ?? 'N/A'}${r.unit === '%' ? '%' : ''} on ${r.latestDate || 'N/A'}`));
+      break;
+    }
+    case 'get_crypto_market_overview': {
+      pushFact(facts, 'total crypto market cap USD', data?.totalMarketCapUsd);
+      pushFact(facts, 'total market cap 24h change', data?.totalMarketCapChangePct24h, '%');
+      pushFact(facts, 'total 24h volume USD', data?.totalVolume24hUsd);
+      pushFact(facts, 'ETH gas (gwei)', data?.ethGasGwei);
+      pushFact(facts, 'BTC fee (sat/vB)', data?.btcFeeSatPerVb);
+      pushFact(facts, 'as of', data?.asOf);
       break;
     }
     case 'get_trading_pairs': {
@@ -278,7 +324,7 @@ const buildEvidenceFacts = (toolName, args, data, analysis) => {
       facts.push(`asset: ${data?.asset?.name || args?.asset || 'unknown'}${data?.asset?.symbol ? ` (${data.asset.symbol})` : ''}`);
       pushFact(facts, 'total pairs', data?.totalPairs);
       pairs.slice(0, 5).forEach((pair, index) => {
-        facts.push(`pair ${index + 1}: ${pair.exchange || 'unknown exchange'} ${pair.pair || 'unknown pair'} volume24h=${pair.volume_24h ?? 'N/A'} spread=${pair.spread ?? 'N/A'}`);
+        facts.push(`pair ${index + 1}: ${pair.exchange || 'unknown exchange'} ${pair.pair || 'unknown pair'} volume24h=${pair.volume_24h ?? 'N/A'} depthUpUsd=${pair.cost_to_move_up_usd ?? 'N/A'} depthDownUsd=${pair.cost_to_move_down_usd ?? 'N/A'}`);
       });
       break;
     }
@@ -357,7 +403,7 @@ const summarizeToolData = (toolName, args, data) => {
     case 'get_token_economics': {
       const name = data?.asset?.name || args?.asset || 'unknown';
       const tokenomics = data?.tokenomics || {};
-      return `Returned tokenomics for ${name}. Supply ratio: ${tokenomics.supply_ratio || 'N/A'}, inflationary: ${tokenomics.is_inflationary ?? 'N/A'}.`;
+      return `Returned tokenomics for ${name}. Supply ratio: ${tokenomics.supply_ratio || 'N/A'}, inflationary: ${tokenomics.is_inflationary ?? 'N/A'}, upcoming unlocks: ${asArray(data?.upcomingUnlocks).length}.`;
     }
     case 'get_trading_pairs': {
       const name = data?.asset?.name || args?.asset || 'unknown';
@@ -370,18 +416,32 @@ const summarizeToolData = (toolName, args, data) => {
         return `Returned index snapshot and ${constituentsCount} constituents for ${data.ticker}.`;
       }
       const count = data?.count || asArray(data?.indices).length;
-      return `Returned ${count} SoSoValue indices.`;
+      return `Returned ${count} SoSoValue indices: ${asArray(data?.indices).map((i) => i.ticker).join(', ')}.`;
     }
-    case 'get_analysis_charts': {
-      if (data?.chartName) {
-        return `Returned analysis chart data for "${data.chartName}".`;
+    case 'get_analysis_chart': {
+      if (!data?.chart) {
+        return `${data?.error || 'Unknown chart.'} Available: ${asArray(data?.availableCharts).join(', ')}`;
       }
-      const count = data?.count || asArray(data?.charts).length;
-      return `Returned ${count} available analysis charts.`;
+      return `Returned ${data.count} data points for chart "${data.chart}" (latest ${data?.latest?.date || 'N/A'}).`;
+    }
+    case 'get_fed_rate_outlook': {
+      const next = asArray(data?.upcomingMeetings)[0];
+      return next
+        ? `Next FOMC meeting ${next.meetingDate}: most likely target range ${next.mostLikelyRange} at ${next.mostLikelyProbabilityPct}%. Returned ${asArray(data?.upcomingMeetings).length} meetings and ${asArray(data?.moneyMarketRates).length} money-market rates.`
+        : 'No FOMC probability data returned.';
+    }
+    case 'get_crypto_market_overview': {
+      return `Total crypto market cap ${data?.totalMarketCapUsd ?? 'N/A'} USD (${data?.totalMarketCapChangePct24h ?? 'N/A'}% 24h), 24h volume ${data?.totalVolume24hUsd ?? 'N/A'} USD.`;
+    }
+    case 'search_crypto_news': {
+      const items = asArray(data?.items);
+      if (!items.length) return `No news found for "${data?.keyword || args?.keyword}".`;
+      return `Returned ${items.length} news items for "${data?.keyword || args?.keyword}". Top titles: ${items.slice(0, 3).map((item) => item.title).join(' | ')}`;
     }
     case 'get_macro_event_history': {
       const count = data?.count || asArray(data?.history).length;
-      return `Returned ${count} historical data points for macro event "${data?.event || args?.event}".`;
+      if (!count) return data?.note || `No history returned for macro event "${data?.event || args?.event}".`;
+      return `Returned ${count} releases for macro event "${data?.event || args?.event}", newest first.`;
     }
     case 'get_sector_spotlight': {
       const count = data?.count || asArray(data?.sectors).length;
@@ -394,17 +454,19 @@ const summarizeToolData = (toolName, args, data) => {
       return `Returned ${count} sector rows. Top sectors: ${topSectors || 'N/A'}.${scope}${fallback}`;
     }
     case 'get_fundraising_overview': {
-      const count = data?.count || asArray(data?.projects).length;
-      const topProjects = asArray(data?.projects).slice(0, 3).map((p) => p.name).join(', ');
-      return `Returned ${count} fundraising projects. Recent: ${topProjects}`;
+      if (data?.project) {
+        const latest = asArray(data.rounds)[0];
+        return `Returned ${data.roundCount} funding rounds for ${data.project}${latest ? `; latest: ${latest.round} ${latest.amount || ''} (${latest.date || 'date n/a'})` : ''}.`;
+      }
+      return `Returned ${asArray(data?.items).length} recent fundraising headlines.`;
     }
     case 'get_asset_news_brief': {
       const items = asArray(data?.items);
       if (!items.length) {
-        return `No featured news items returned for ${data?.asset?.name || args?.asset || 'the requested asset'}.`;
+        return `No news items returned for ${data?.asset?.name || args?.asset || 'the requested asset'}.`;
       }
 
-      return `Returned ${items.length} featured news items for ${data?.asset?.name || args?.asset}. Top titles: ${items.slice(0, 3).map((item) => item.title).join(' | ')}`;
+      return `Returned ${items.length} news items for ${data?.asset?.name || args?.asset}. Top titles: ${items.slice(0, 3).map((item) => item.title).join(' | ')}`;
     }
     case 'get_hot_news_digest': {
       const items = asArray(data?.items);

@@ -18,7 +18,12 @@ MULTI-TOOL STRATEGIES:
 - "Market overview?" -> get_market_intelligence + get_hot_news_digest
 - "Is [COIN] a good buy?" -> get_token_intelligence + get_asset_price_history + get_token_economics
 - "ETF analysis" -> get_etf_flow_brief + get_asset_snapshot
-- "Macro outlook" -> get_macro_crypto_calendar + get_macro_event_history
+- "Macro outlook" -> get_macro_crypto_calendar + get_macro_event_history + get_fed_rate_outlook
+- "Will the Fed cut?" -> get_fed_rate_outlook
+- "Fear & greed / funding / open interest / stablecoin supply" -> get_analysis_chart
+- "News about [person/project/topic]" -> search_crypto_news
+- "Total market cap / gas" -> get_crypto_market_overview
+- "Who invested in [project]?" -> get_fundraising_overview with project
 - "What's hot?" -> get_sector_spotlight + get_hot_news_digest + get_fundraising_overview
 - "Analyze my portfolio" -> get_wallet_holdings + (snapshot/news/economics for top assets)
 

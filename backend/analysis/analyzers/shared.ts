@@ -6,6 +6,8 @@ import { asArray } from '../../utils/common.ts';
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
 const round = (value, digits = 2) => {
+  // Missing stays missing: Number(null) and Number('') would otherwise read as 0.
+  if (value === null || value === undefined || value === '') return null;
   const number = Number(value);
   if (!Number.isFinite(number)) return null;
   const factor = 10 ** digits;
@@ -60,6 +62,8 @@ const parseLooseUsdAmount = (raw) => {
 
 const getPurchaseBtcAmount = (row) =>
   getFirstNumber(
+    row?.btc_acquired,
+    row?.btc_acq,
     row?.btc_amount,
     row?.amount_btc,
     row?.purchase_amount_btc,

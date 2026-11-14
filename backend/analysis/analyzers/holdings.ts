@@ -45,6 +45,20 @@ const analyzeTokenomics = (toolName, data) => {
   if (isInflationary === false) signals.push('No remaining max-supply inflation detected from returned data.');
   if (isInflationary === true) risks.push('Remaining supply indicates future dilution risk.');
   if (supplyRatio !== null && supplyRatio < 40) risks.push('Low circulating supply ratio can amplify unlock/dilution risk.');
+  const circulating = getFirstNumber(tokenomics.circulating_supply);
+  const soonMs = 30 * 24 * 60 * 60 * 1000;
+  const nearUnlocks = asArray(data?.upcomingUnlocks).filter((u) => {
+    const t = new Date(u.date).getTime();
+    return Number.isFinite(t) && t - Date.now() <= soonMs;
+  });
+  const nearUnlockAmount = nearUnlocks.reduce((sum, u) => sum + (getFirstNumber(u.totalAmount) || 0), 0);
+  const nearUnlockPct = circulating ? (nearUnlockAmount / circulating) * 100 : null;
+  if (nearUnlockPct !== null && nearUnlockPct >= 1) {
+    const impact = nearUnlockPct >= 5 ? -10 : -5;
+    score += impact;
+    scoreBreakdown.push(makeBreakdown('upcoming unlocks', impact, 'Token unlocks within 30 days add supply.', { unlockPctOfCirculating: round(nearUnlockPct) }));
+    risks.push(`Unlocks within 30 days equal about ${formatPercent(nearUnlockPct)} of circulating supply.`);
+  }
 
   return buildAnalysis({
     toolName,
@@ -57,6 +71,7 @@ const analyzeTokenomics = (toolName, data) => {
     metrics: {
       supplyRatioPercent: round(supplyRatio),
       remainingSupply: round(remainingSupply, 0),
+      unlocksNext30dPctOfCirculating: round(nearUnlockPct),
       isInflationary: isInflationary === null ? null : Boolean(isInflationary)
     },
     scoreBreakdown

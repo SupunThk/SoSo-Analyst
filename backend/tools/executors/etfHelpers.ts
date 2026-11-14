@@ -1,22 +1,4 @@
 import { asArray } from '../../normalizers/toolResult.ts';
-import { normalizeEtfAssetSymbol } from '../../clients/soso.ts';
-
-const getEtfType = (assetSymbol) => {
-  const symbol = normalizeEtfAssetSymbol(assetSymbol);
-  return symbol === 'ETH' ? 'us-eth-spot' : 'us-btc-spot';
-};
-
-const getEtfMetricValue = (metric) =>
-  metric && typeof metric === 'object' && Object.prototype.hasOwnProperty.call(metric, 'value')
-    ? metric.value
-    : metric;
-
-const getSosoList = (payload) => {
-  if (Array.isArray(payload?.data)) return payload.data;
-  if (Array.isArray(payload?.data?.list)) return payload.data.list;
-  if (Array.isArray(payload?.list)) return payload.list;
-  return [];
-};
 
 const normalizeEtfHistory = (records, days) => {
   const normalized = asArray(records).map((item) => ({
@@ -29,8 +11,8 @@ const normalizeEtfHistory = (records, days) => {
 
   normalized.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  // The legacy ETF endpoint (used when v2 fails) only returns the cumulative inflow.
-  // Daily flow is then the day-over-day change; the oldest record has no baseline.
+  // If a row lacks the daily flow, derive it from the day-over-day change in
+  // cumulative inflow; the oldest record has no baseline.
   const toNumber = (value) => (value === null || value === undefined || value === '' ? null : Number(value));
   normalized.forEach((item, index) => {
     if (toNumber(item.total_net_flow) !== null) return;
@@ -42,24 +24,6 @@ const normalizeEtfHistory = (records, days) => {
   return normalized.slice(-days);
 };
 
-const normalizeEtfMetricItem = (item) => ({
-  ticker: item.ticker,
-  institute: item.institute,
-  net_assets: getEtfMetricValue(item.netAssets),
-  net_assets_percentage: getEtfMetricValue(item.netAssetsPercentage),
-  daily_net_inflow: getEtfMetricValue(item.dailyNetInflow),
-  cumulative_net_inflow: getEtfMetricValue(item.cumNetInflow),
-  daily_value_traded: getEtfMetricValue(item.dailyValueTraded),
-  fee: getEtfMetricValue(item.fee),
-  discount_premium_rate: getEtfMetricValue(item.discountPremiumRate),
-  status: {
-    net_assets: item.netAssets?.status,
-    daily_net_inflow: item.dailyNetInflow?.status,
-    cumulative_net_inflow: item.cumNetInflow?.status,
-    daily_value_traded: item.dailyValueTraded?.status
-  },
-  lastUpdateDate: item.dailyNetInflow?.lastUpdateDate || item.netAssets?.lastUpdateDate || item.cumNetInflow?.lastUpdateDate
-});
 
 const buildEtfFlowAnalytics = (historyData) => {
   const flows = historyData
@@ -88,11 +52,4 @@ const buildEtfFlowAnalytics = (historyData) => {
   };
 };
 
-export {
-  getEtfType,
-  getEtfMetricValue,
-  getSosoList,
-  normalizeEtfHistory,
-  normalizeEtfMetricItem,
-  buildEtfFlowAnalytics
-};
+export { normalizeEtfHistory, buildEtfFlowAnalytics };
