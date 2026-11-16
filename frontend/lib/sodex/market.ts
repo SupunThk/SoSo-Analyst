@@ -64,6 +64,8 @@ export interface SizedOrder {
   quantity: string;
   price: string; // limit price, or the slippage bound for a market order
   notionalUsd: number;
+  // price x quantity: what the server checks against the app size cap.
+  boundNotionalUsd: number;
   errors: string[];
 }
 
@@ -86,10 +88,14 @@ export function sizeOrder(input: {
     : (input.limitPrice as number);
   const price = toStepDecimal(rawPrice, symbol.tickSize, isMarket ? (side === 'long' ? 'ceil' : 'floor') : 'round');
 
-  const quantity = toStepDecimal(sizeUsd / referencePrice, symbol.stepSize, 'floor');
+  // A limit order fills at its limit price, so size it there; a market order
+  // fills near the reference (mark) price.
+  const fillPrice = isMarket ? referencePrice : Number(price);
+  const quantity = toStepDecimal(sizeUsd / fillPrice, symbol.stepSize, 'floor');
   const qty = Number(quantity);
   const minQty = Number(isMarket ? symbol.marketMinQuantity || symbol.minQuantity : symbol.minQuantity);
-  const notionalUsd = qty * (isMarket ? referencePrice : Number(price));
+  const notionalUsd = qty * fillPrice;
+  const boundNotionalUsd = qty * Number(price);
 
   if (qty <= 0 || (minQty && qty < minQty)) errors.push(`Minimum size is ${symbol.minQuantity} ${symbol.baseCoin}.`);
   const minNotional = Number(symbol.minNotional);
@@ -97,7 +103,7 @@ export function sizeOrder(input: {
   const maxNotional = Number(symbol.maxNotional);
   if (maxNotional && notionalUsd > maxNotional) errors.push(`Maximum order value is $${maxNotional}.`);
 
-  return { quantity, price, notionalUsd, errors };
+  return { quantity, price, notionalUsd, boundNotionalUsd, errors };
 }
 
 export const roundToTick = (value: number, symbol: PerpsSymbol) => toStepDecimal(value, symbol.tickSize, 'round');

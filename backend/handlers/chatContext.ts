@@ -97,7 +97,8 @@ const getVerifiedWalletContext = async (req, walletAddress) => {
   }
 
   try {
-    const session = await findSessionForRequest(req);
+    // sessionOrGuest already loaded the session; only look it up if it did not.
+    const session = req.auth || await findSessionForRequest(req);
     if (!session || session.walletHash !== hashWallet(normalizedWalletAddress)) {
       return {
         normalizedWalletAddress,

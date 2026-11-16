@@ -126,6 +126,20 @@ describe('sizeOrder', () => {
     expect(short.price).toBe('69300');
   });
 
+  it('sizes a limit order at its limit price, whatever the mark price', () => {
+    const limit = sizeOrder({ symbol: btc, side: 'long', sizeUsd: 500, referencePrice: 100000, limitPrice: 50000 });
+    expect(limit.quantity).toBe('0.01');
+    expect(limit.price).toBe('50000');
+    expect(limit.notionalUsd).toBe(500);
+    expect(limit.boundNotionalUsd).toBe(500);
+  });
+
+  it('reports the slippage-bound value the server checks for market orders', () => {
+    const market = sizeOrder({ symbol: btc, side: 'long', sizeUsd: 1000, referencePrice: 70000 });
+    expect(market.boundNotionalUsd).toBeGreaterThan(market.notionalUsd);
+    expect(market.boundNotionalUsd).toBeCloseTo(Number(market.quantity) * 70700, 6);
+  });
+
   it('flags orders below the minimum value', () => {
     const tiny = sizeOrder({ symbol: btc, side: 'long', sizeUsd: 5, referencePrice: 70000 });
     expect(tiny.errors.join(' ')).toMatch(/Minimum order value/);

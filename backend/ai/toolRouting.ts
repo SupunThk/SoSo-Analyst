@@ -475,7 +475,11 @@ const inferToolRouting = async (message = '') => {
     // An LLM guess may pick tools but not escalate spend past the default tier.
     const llmMatched = ROUTING_RULES
       .filter((rule) => llmIntents.includes(rule.intent))
-      .map((rule) => ({ ...rule, budget: capBudget(rule.budget, LLM_ROUTED_MAX_BUDGET) }));
+      // An LLM guess may not escalate spend past the default tier, unless a
+      // regex rule also matched that intent (the LLM only confirmed it).
+      .map((rule) => (weak.includes(rule)
+        ? rule
+        : { ...rule, budget: capBudget(rule.budget, LLM_ROUTED_MAX_BUDGET) }));
     if (llmMatched.length) matched = llmMatched;
   }
 

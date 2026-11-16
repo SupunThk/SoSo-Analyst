@@ -31,7 +31,7 @@ interface HeroStateProps {
 
 const formatSigned = (value: number) => `${value >= 0 ? '+' : ''}${value}%`;
 
-const HeroState: React.FC<HeroStateProps> = ({ onRunQuery, onOpenManual }) => {
+const HeroState: React.FC<HeroStateProps> = ({ onRunQuery, onOpenManual, walletAddress }) => {
   const [regime, setRegime] = useState<MarketRegime | null>(null);
 
   useEffect(() => {
@@ -58,8 +58,13 @@ const HeroState: React.FC<HeroStateProps> = ({ onRunQuery, onOpenManual }) => {
           </h2>
           <p className="mt-3 max-w-2xl font-sans text-sm leading-relaxed text-text-secondary sm:text-base">
             Grounded answers from live data: spot ETF flows, sector rotation, Fed rate odds,
-            token unlocks, fundraising and news.
+            token unlocks, fundraising and news, plus long/short signals you can trade on SoDEX.
           </p>
+          {!walletAddress && (
+            <p className="mt-2 font-mono text-[11px] text-text-secondary">
+              Try a few questions free, no wallet needed. Sign in to save chats and trade.
+            </p>
+          )}
 
           {regime && (
             <motion.button

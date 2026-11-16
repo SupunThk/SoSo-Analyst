@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Icon } from '@/components/ui/Icon';
 import TradeAssetButton from '@/components/trade/TradeAssetButton';
+import { openShareOnX } from '@/lib/share';
 import {
   fetchPerpAsset,
   fetchPerpBoard,
@@ -71,6 +72,18 @@ const regimeContext = (detail: PerpAssetDetail) => {
     case 'neutral': return `Funding is neutral${aprText}.`;
     default: return undefined;
   }
+};
+
+const positioningQuestion = (asset: string) =>
+  `Analyze ${asset} perpetual futures positioning: funding across venues, open interest, depth, and what it implies for squeeze risk.`;
+
+// Share a radar read on X; the link opens the app with the positioning question.
+const shareRadar = (asset: string, detail: PerpAssetDetail | null) => {
+  const read = detail && detail.asset === asset ? regimeContext(detail) : undefined;
+  openShareOnX(
+    `${asset} perps on SoSo Analyst's Perps Radar${read ? `: ${read}` : ''}`,
+    positioningQuestion(asset),
+  );
 };
 
 const askAnalyst = (query: string) => {
@@ -184,10 +197,18 @@ function AssetDetail({ asset }: { asset: string }) {
           />
           <button
             type="button"
-            onClick={() => askAnalyst(`Analyze ${asset} perpetual futures positioning: funding across venues, open interest, depth, and what it implies for squeeze risk.`)}
+            onClick={() => askAnalyst(positioningQuestion(asset))}
             className="inline-flex items-center gap-1.5 rounded-md border border-accent-green/35 bg-accent-green/[0.06] px-2.5 py-1 font-sans text-xs font-medium text-accent-green transition-colors hover:border-accent-green/70"
           >
             Ask analyst <Icon name="arrowRight" size={13} />
+          </button>
+          <button
+            type="button"
+            onClick={() => shareRadar(asset, detail)}
+            aria-label={`Share the ${asset} perps read on X`}
+            className="inline-flex items-center rounded-md border border-border px-2.5 py-1 font-sans text-xs font-medium text-text-secondary transition-colors hover:border-border-bright hover:text-text-primary"
+          >
+            Share on X
           </button>
         </div>
       }

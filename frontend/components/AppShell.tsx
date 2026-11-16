@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { useAccount } from 'wagmi';
 import Header from '@/components/Header';
 import LiveTicker from '@/components/LiveTicker';
 import Sidebar from '@/components/Sidebar';
@@ -10,6 +11,7 @@ import MobileNav from '@/components/MobileNav';
 import TerminalBoot from '@/components/TerminalBoot';
 import { useAuth } from '@/hooks/useAuth';
 import { useTerminalStore, WELCOME_MESSAGE } from '@/store/useTerminalStore';
+import { takeQuestionFromUrl } from '@/lib/share';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [booting, setBooting] = useState(true);
@@ -19,6 +21,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   const { walletAddress, authSession, handleWalletConnect, handleLogout } = useAuth();
+  const { status: walletStatus } = useAccount();
   
   const {
     chats, activeChatId, setActiveChatId, setChats, setIsChatsLoading, loadChats, handleDeleteChat, isChatsLoading,
@@ -131,6 +134,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     window.addEventListener('soso:run-query', handler);
     return () => window.removeEventListener('soso:run-query', handler);
   }, []);
+
+  // Shared links (/?q=...) run their question once the boot screen is done and
+  // the wallet has reconnected, so a signed-in visitor gets a saved chat rather
+  // than a guest answer. If reconnecting stalls, run it anyway after a few seconds.
+  useEffect(() => {
+    if (booting) return;
+    const run = () => {
+      const question = takeQuestionFromUrl();
+      if (question) runQueryRef.current(question);
+    };
+    if (walletStatus === 'connecting' || walletStatus === 'reconnecting') {
+      const timer = setTimeout(run, 4000);
+      return () => clearTimeout(timer);
+    }
+    run();
+  }, [booting, walletStatus]);
 
   const onAnalyzePortfolio = () => runQuery('Analyze my portfolio — check my holdings, risk profile, and market fit.');
 

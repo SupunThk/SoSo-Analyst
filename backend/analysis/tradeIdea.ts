@@ -109,14 +109,18 @@ export const buildTradeIdea = ({
     directionalScore: score,
     riskScore,
     confidence: ['low', 'medium', 'high'].includes(synthesis.confidence) ? synthesis.confidence : 'low',
-    rationale: (Array.isArray(synthesis.thesis) ? synthesis.thesis : []).slice(0, 3).map(String),
+    rationale: (Array.isArray(synthesis.thesis) ? synthesis.thesis : []).slice(0, 3).map(readable),
     riskFlags: [
       ...(Array.isArray(synthesis.riskFlags) ? synthesis.riskFlags : []),
       ...(Array.isArray(synthesis.conflicts) ? synthesis.conflicts : [])
-    ].slice(0, 3).map(String),
+    ].slice(0, 3).map(readable),
     suggestedStopPct: suggestedStopFor(riskScore)
   };
 };
+
+// Synthesis lines are prefixed with the tool that produced them
+// ("get_asset_price_history: Trend is bearish."); users only need the finding.
+const readable = (line) => String(line).replace(/^[a-z][a-z0-9_]*:\s*/, '');
 
 const symbolCache = new NodeCache({ stdTTL: 10 * 60, checkperiod: 120, maxKeys: 4 });
 

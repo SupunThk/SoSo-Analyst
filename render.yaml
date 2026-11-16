@@ -51,5 +51,7 @@ services:
         value: 12
       - key: AGENT_RATE_LIMIT_PER_MINUTE
         value: 20
+      - key: GUEST_CHAT_DAILY_LIMIT
+        value: 3
       - key: CHAT_RATE_LIMIT_PER_MINUTE
         value: 60

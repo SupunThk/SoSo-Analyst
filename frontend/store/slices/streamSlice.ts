@@ -5,6 +5,9 @@ import { sendMessageStream, createChat, fetchChatSession, isRateLimitError } fro
 export const SIGN_IN_REQUIRED_MESSAGE =
   '**🔒 SIGN IN REQUIRED** — Connect your wallet and sign the login message to run analysis. Signing proves wallet ownership only; it never authorizes a transaction.';
 
+export const GUEST_LIMIT_REACHED_MESSAGE =
+  '**🔒 FREE QUESTIONS USED** — You have used your free guest questions for today. Connect your wallet and sign the login message to keep going. Signing proves wallet ownership only; it never authorizes a transaction.';
+
 export interface StreamSlice {
   messages: Message[];
   isThinking: boolean;
@@ -72,21 +75,8 @@ export const createStreamSlice = (set: TerminalSet, get: TerminalGet): StreamSli
     const state = get();
     if (!text.trim() || state.isThinking) return;
 
-    // Chat runs paid model calls, so the backend requires a signed-in wallet session.
-    if (!walletAddress || !authSession) {
-      state.setMessages([...state.messages, {
-        id: `usr-${Date.now()}`,
-        role: 'user',
-        content: text,
-        timestamp: new Date(),
-      }, {
-        id: `auth-${Date.now()}`,
-        role: 'assistant',
-        content: SIGN_IN_REQUIRED_MESSAGE,
-        timestamp: new Date(),
-      }]);
-      return;
-    }
+    // Signed-out visitors run as guests: the backend allows a few free
+    // questions per day and answers with a sign-in prompt after that.
 
     const userMsg: Message = {
       id: `usr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -190,7 +180,8 @@ export const createStreamSlice = (set: TerminalSet, get: TerminalGet): StreamSli
       onError: (errorMessage) => {
         streamCompleted = false;
 
-        const needsSignIn = /wallet session is required/i.test(errorMessage);
+        const guestLimit = /free guest questions/i.test(errorMessage);
+        const needsSignIn = !guestLimit && /wallet session is required/i.test(errorMessage);
         const isRateLimit = /rate limit|too many requests|\b429\b/i.test(errorMessage);
         const displayMessage = isRateLimit
           ? 'The system is processing a high volume of requests. Please wait a moment and try again.'
@@ -199,7 +190,9 @@ export const createStreamSlice = (set: TerminalSet, get: TerminalGet): StreamSli
         const errorMsg: Message = {
           id: `err-${Date.now()}`,
           role: 'assistant',
-          content: needsSignIn
+          content: guestLimit
+            ? GUEST_LIMIT_REACHED_MESSAGE
+            : needsSignIn
             ? SIGN_IN_REQUIRED_MESSAGE
             : isRateLimit
             ? `**⏳ PLEASE WAIT** — ${displayMessage}`

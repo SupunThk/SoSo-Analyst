@@ -120,6 +120,17 @@ describe('checkPerpsOrder', () => {
     expect(checkPerpsOrder(close).ok).toBe(true);
   });
 
+  it('checks every order in the batch, not just the first', () => {
+    const entry = { ...orderBody().orders[0], modifier: 3 };
+    const hidden = { ...entry, clOrdID: 'sa-2', modifier: 1, quantity: '1', reduceOnly: false };
+    expect(checkPerpsOrder(orderBody({ orders: [entry, hidden] })).ok).toBe(false);
+    const bigStop = { ...entry, clOrdID: 'sl', modifier: 4, quantity: '1', reduceOnly: true };
+    expect(checkPerpsOrder(orderBody({ orders: [entry, bigStop] })).ok).toBe(false);
+    const stop = { ...entry, clOrdID: 'sl', modifier: 4, quantity: '0.001', reduceOnly: true, stopPrice: '66500', stopType: 1, triggerType: 2 };
+    expect(checkPerpsOrder(orderBody({ orders: [entry, stop] })).ok).toBe(true);
+    expect(checkPerpsOrder(orderBody({ orders: [{ ...entry, modifier: 1 }, stop] })).ok).toBe(false);
+  });
+
   it('requires a price bound on the entry order', () => {
     const noPrice = orderBody({ orders: [{ ...orderBody().orders[0], price: undefined }] });
     expect(checkPerpsOrder(noPrice).ok).toBe(false);
@@ -165,6 +176,24 @@ describe('trading routes', () => {
     expect(relayed).toHaveLength(0);
   });
 
+  it('reports an HTTP error from SoDEX as a failure even without a code field', async () => {
+    const working = (axios as any).request;
+    (axios as any).request = async (config) => { relayed.push(config); return { status: 401, data: { error: 'invalid signature' } }; };
+    try {
+      const response = await post(`/api/sodex/trading/register/${wallet}`, {
+        kind: 'approveBuilderFee',
+        body: { accountID: 42, builderID: 777, maxFeeRate: 50 },
+        headers: { 'x-api-sign': SIG_02, 'x-api-nonce': '1', 'x-api-chain': '1' }
+      });
+      const body = (await response.json()) as any;
+      expect(response.status).toBeGreaterThanOrEqual(400);
+      expect(body.ok).not.toBe(true);
+      expect(JSON.stringify(body)).toMatch(/invalid signature/);
+    } finally {
+      (axios as any).request = working;
+    }
+  });
+
   it('relays API key registration with builder approval', async () => {
     const response = await post(`/api/sodex/trading/register/${wallet}`, {
       kind: 'addApiKeyWithBuilder',
@@ -204,7 +233,7 @@ describe('trading routes', () => {
 describe('trade ideas', () => {
   const perps = new Set(['BTC-USD', 'ETH-USD', 'SOL-USD']);
   const synthesis = (directionalScore, extra = {}) => ({
-    directionalScore, riskScore: 30, confidence: 'medium', thesis: ['ETF inflows rising'], riskFlags: [], conflicts: [], ...extra
+    directionalScore, riskScore: 30, confidence: 'medium', thesis: ['get_etf_flow_brief: ETF inflows rising'], riskFlags: [], conflicts: [], ...extra
   });
 
   it('normalizes asset names and symbols', () => {
@@ -217,7 +246,7 @@ describe('trade ideas', () => {
 
   it('emits a long when the synthesis leans bullish on one listed asset', () => {
     const idea = buildTradeIdea({ synthesis: synthesis(72), toolCalls: [{ input: { asset: 'bitcoin' } }], perpsSymbols: perps });
-    expect(idea).toMatchObject({ symbol: 'BTC-USD', side: 'long', suggestedStopPct: 3 });
+    expect(idea).toMatchObject({ symbol: 'BTC-USD', side: 'long', suggestedStopPct: 3, rationale: ['ETF inflows rising'] });
   });
 
   it('emits a short when bearish, with a wider stop for high risk', () => {

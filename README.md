@@ -2,12 +2,25 @@
 
 SoSo Analyst is a professional AI-powered crypto research terminal. It allows users to ask natural-language questions about crypto markets and receive data-backed, analyst-grade answers.
 
+**Live app:** https://so-so-analyst-w2.vercel.app · **Builder stats:** https://so-so-analyst-w2.vercel.app/builder · **Demo video:** _coming soon_
+
+## Insight to action in four steps
+
+1. **Ask.** Try "BTC Trade Signal" on the home screen, or type any question. Visitors get a few free questions without a wallet.
+2. **Read the signal.** When an answer covers one asset that SoDEX lists and the data leans clearly one way, a signal card appears: long or short, confidence, risk score, the reasons, and a suggested stop-loss.
+3. **Trade on SoDEX.** "Open ticket" pre-fills a SoDEX perps order. One optional wallet signature turns on trading; after that you set the size and confirm each order. The SoSo Analyst builder fee (0.05%) is shown on its own line before you confirm.
+4. **Share.** "Share on X" posts the signal with a link that opens the app and re-runs the same analysis live.
+
+Perps Radar (`/perps`) compares funding and open interest across venues and links each asset to the same ticket. `/builder` shows SoSo Analyst's live SoDEX builder stats.
+
+<img src="docs/images/home-mobile.png" alt="SoSo Analyst home screen on a phone" width="300" />
+
 ## Features
 
 - **AI agent loop**: Uses Google Gemini to decide which data to fetch based on user queries.
 - **Real-time data**: Proxies SoSoValue API endpoints for market data, ETF flows, public company holdings, macro events, news, indices, and sector intelligence.
 - **Trading terminal**: Includes charting, order book depth, recent trades, and technical indicators powered by `lightweight-charts`.
-- **Wallet sessions**: Chat requires signing in with a wallet (an EIP-4361 message). Signing proves ownership only and never authorizes a blockchain transaction.
+- **Wallet sessions**: Visitors get a few free guest questions per day (`GUEST_CHAT_DAILY_LIMIT`, default 3). After that, chat requires signing in with a wallet (an EIP-4361 message), which also saves chat history. Signing proves ownership only and never authorizes a blockchain transaction.
 - **SoDEX trading with a builder code**: Users can trade SoDEX perps from the charts page, Perps Radar, and AI trade signals in chat. One optional wallet signature registers a browser-held trading key and approves the SoSo Analyst builder fee (0.05%). Each order is reviewed on a confirm step, with size, leverage, and notional limits checked again on the server. The `/builder` page shows live builder stats: traders, volume, fills, and fees.
 - **Secure architecture**: API keys stay server-side. Backend routes include request validation, rate limits, CORS restrictions, and health checks.
 
@@ -63,6 +76,7 @@ ETHERSCAN_CHAIN_IDS=1,8453,56,137,42161,10,43114
 ETHERSCAN_TOKEN_TRANSFER_OFFSET=100
 ETHERSCAN_TOKENS_PER_CHAIN=12
 AGENT_RATE_LIMIT_PER_MINUTE=20
+GUEST_CHAT_DAILY_LIMIT=3
 CHAT_RATE_LIMIT_PER_MINUTE=60
 SYSTEM_PROMPT_VERSION=v3
 GEMINI_TOOL_PAYLOAD_MAX_CHARS=12000

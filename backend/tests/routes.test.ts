@@ -178,6 +178,8 @@ const testAgentChatRequiresLogin = async () => {
   (mongoose.connection as any).readyState = 0;
 
   resetAgentModules();
+  const previousGuestLimit = process.env.GUEST_CHAT_DAILY_LIMIT;
+  process.env.GUEST_CHAT_DAILY_LIMIT = '0';
   const server = await startServer('/api/agent', (await import('../routes/agent.ts')).default);
   try {
     for (const path of ['/api/agent/chat', '/api/agent/chat/stream']) {
@@ -192,6 +194,8 @@ const testAgentChatRequiresLogin = async () => {
       assert.equal(response.status, 401, `${path} should require a session`);
     }
   } finally {
+    if (previousGuestLimit === undefined) delete process.env.GUEST_CHAT_DAILY_LIMIT;
+    else process.env.GUEST_CHAT_DAILY_LIMIT = previousGuestLimit;
     await closeServer(server);
   }
 };

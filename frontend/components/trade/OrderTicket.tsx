@@ -51,7 +51,7 @@ export default function OrderTicket({ request, onClose }: { request: TicketReque
     if (!symbol || !mark || !side || !(size > 0)) return null;
     if (orderType === 'limit' && !(limit && limit > 0)) return null;
     try {
-      return sizeOrder({ symbol, side, sizeUsd: size, referencePrice: limit || mark, limitPrice: limit });
+      return sizeOrder({ symbol, side, sizeUsd: size, referencePrice: mark, limitPrice: limit });
     } catch {
       return null;
     }
@@ -65,7 +65,7 @@ export default function OrderTicket({ request, onClose }: { request: TicketReque
   const blockers: string[] = [];
   if (!side) blockers.push('Choose long or short.');
   if (preview?.errors.length) blockers.push(...preview.errors);
-  if (config && notional > config.maxOrderNotionalUsd) blockers.push(`App limit is ${usd(config.maxOrderNotionalUsd)} per order.`);
+  if (config && (preview?.boundNotionalUsd ?? 0) > config.maxOrderNotionalUsd) blockers.push(`App limit is ${usd(config.maxOrderNotionalUsd)} per order, counted at the order's worst-case price.`);
   if (available !== null && margin > available) blockers.push(`Needs ${usd(margin)} margin; ${usd(available)} available.`);
   if (sl !== null && (sl <= 0 || sl >= 50)) blockers.push('Stop-loss must be between 0% and 50%.');
   if (tp !== null && (tp <= 0 || tp >= 500)) blockers.push('Take-profit must be between 0% and 500%.');

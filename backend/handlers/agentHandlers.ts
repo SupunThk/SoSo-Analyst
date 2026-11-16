@@ -76,6 +76,8 @@ const handleChatStream = async (req, res) => {
   });
 
   const send = (event, data) => {
+    // SSE errors still return HTTP 200; flag them so guest quotas skip them.
+    if (event === 'error') res.locals.requestFailed = true;
     if (clientDisconnected || res.writableEnded) return;
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   };
@@ -159,8 +161,9 @@ const handleChatStream = async (req, res) => {
 };
 
 const saveStreamedChat = async (req, payload, walletContext, result) => {
-  const normalizedWalletAddress = walletContext.normalizedWalletAddress;
-  if (!normalizedWalletAddress || !payload.chatId) {
+  // Only the session-verified wallet may append to its own chats.
+  const normalizedWalletAddress = walletContext.verifiedWalletAddress;
+  if (req.guest || !normalizedWalletAddress || !payload.chatId) {
     return;
   }
 

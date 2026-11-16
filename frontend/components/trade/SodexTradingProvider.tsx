@@ -143,14 +143,28 @@ export function SodexTradingProvider({ children }: { children: React.ReactNode }
   const keyRef = useRef<StoredTradingKey | null>(null);
   useEffect(() => { keyRef.current = key; }, [key]);
 
+  // Retry a failed config fetch (rate limit, cold start) with backoff, so a
+  // brief backend hiccup does not hide trading for the whole session.
   useEffect(() => {
     const controller = new AbortController();
-    fetchTradingConfig(controller.signal)
-      .then(setConfig)
-      .catch((err) => {
-        if (!controller.signal.aborted) setError(describe(err));
-      });
-    return () => controller.abort();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const load = (attempt: number) => {
+      fetchTradingConfig(controller.signal)
+        .then(setConfig)
+        .catch((err) => {
+          if (controller.signal.aborted) return;
+          if (attempt < 4) {
+            timer = setTimeout(() => load(attempt + 1), 2000 * 2 ** attempt);
+          } else {
+            setError(describe(err));
+          }
+        });
+    };
+    load(0);
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
   }, []);
 
   const loadStatus = useCallback(async (keyName?: string) => {
@@ -286,7 +300,9 @@ export function SodexTradingProvider({ children }: { children: React.ReactNode }
     const leverage = Math.min(Math.max(Math.round(input.leverage), 1), Math.min(cfg.maxLeverage, symbol.maxLeverage));
     const sized = sizeOrder({ symbol, side: input.side, sizeUsd: input.sizeUsd, referencePrice: mark, limitPrice: input.limitPrice });
     if (sized.errors.length) throw new Error(sized.errors.join(' '));
-    if (sized.notionalUsd > cfg.maxOrderNotionalUsd) {
+    // Same bound the server checks (price incl. slippage x quantity), checked
+    // before leverage is changed so a refused order leaves nothing behind.
+    if (sized.boundNotionalUsd > cfg.maxOrderNotionalUsd) {
       throw new Error(`Order size exceeds the app limit of $${cfg.maxOrderNotionalUsd}.`);
     }
 

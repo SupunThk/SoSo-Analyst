@@ -122,8 +122,13 @@ export const relaySigned = async (
   });
 
   const payload = response.data;
-  if (response.status >= 400 && !(payload && typeof payload === 'object')) {
-    throw new SodexUpstreamError(`SoDEX HTTP ${response.status}`, null);
+  if (response.status >= 400) {
+    // Prefer SoDEX's own error text; never report an HTTP failure as success.
+    if (payload && typeof payload === 'object' && payload.code !== undefined && Number(payload.code) !== 0) {
+      return unwrap(payload);
+    }
+    const detail = payload && typeof payload === 'object' ? (payload.error || payload.message || payload.msg) : null;
+    throw new SodexUpstreamError(detail ? String(detail) : `SoDEX HTTP ${response.status}`, null);
   }
   return unwrap(payload);
 };
@@ -135,6 +140,9 @@ export interface OrderCheckResult {
   reason?: string;
   notionalUsd?: number;
 }
+
+const BRACKET_MODIFIER = 3;
+const ATTACHED_STOP_MODIFIER = 4;
 
 // Validate a signed perps newOrder body before relaying it. The server cannot
 // change signed bytes, so it either forwards the request as-is or refuses it.
@@ -150,12 +158,34 @@ export const checkPerpsOrder = (body: any, config = getTradingConfig()): OrderCh
     return { ok: false, reason: 'Submit one entry order, optionally with a take-profit and stop-loss.' };
   }
 
+  // orders[0] is the entry. Anything after it must be a take-profit or
+  // stop-loss attached to that entry: reduce-only and no larger than it.
   const entry = orders[0];
   const isReduceOnly = entry?.reduceOnly === true;
   const price = Number(entry?.price);
   const quantity = Number(entry?.quantity);
   if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(quantity) || quantity <= 0) {
     return { ok: false, reason: 'Entry order needs a price (or slippage bound) and quantity.' };
+  }
+  if (entry?.modifier === ATTACHED_STOP_MODIFIER) {
+    return { ok: false, reason: 'The first order must be the entry order.' };
+  }
+
+  const attached = orders.slice(1);
+  if (attached.length && entry?.modifier !== BRACKET_MODIFIER) {
+    return { ok: false, reason: 'Take-profit and stop-loss orders must be attached to a bracket entry.' };
+  }
+  for (const order of attached) {
+    const attachedQuantity = Number(order?.quantity);
+    if (
+      order?.modifier !== ATTACHED_STOP_MODIFIER ||
+      order?.reduceOnly !== true ||
+      !Number.isFinite(attachedQuantity) ||
+      attachedQuantity <= 0 ||
+      attachedQuantity > quantity
+    ) {
+      return { ok: false, reason: 'Take-profit and stop-loss orders must be reduce-only and no larger than the entry.' };
+    }
   }
 
   const notionalUsd = price * quantity;

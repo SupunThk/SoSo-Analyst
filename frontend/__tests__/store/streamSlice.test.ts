@@ -14,7 +14,7 @@ const apiMocks = vi.hoisted(() => ({
 vi.mock('@/lib/api', () => apiMocks);
 
 import { useTerminalStore } from '@/store/useTerminalStore';
-import { SIGN_IN_REQUIRED_MESSAGE } from '@/store/slices/streamSlice';
+import { GUEST_LIMIT_REACHED_MESSAGE, SIGN_IN_REQUIRED_MESSAGE } from '@/store/slices/streamSlice';
 import type { AuthSession } from '@/lib/types';
 
 const session: AuthSession = { success: true, walletAddress: '0xabc', token: 'tok', expiresAt: '2999-01-01T00:00:00.000Z' };
@@ -25,13 +25,27 @@ describe('stream slice submit', () => {
     useTerminalStore.getState().clearChat();
   });
 
-  it('asks signed-out users to sign in and never calls the backend', async () => {
+  it('runs signed-out users as guests without creating a saved chat', async () => {
+    apiMocks.sendMessageStream.mockImplementation(async (_m, _h, callbacks) => {
+      callbacks.onDone({ answer: 'Guest answer.', toolCalls: [] });
+    });
+
     await useTerminalStore.getState().handleSubmit('show market regime', null, null, null, vi.fn(), vi.fn());
 
-    const messages = useTerminalStore.getState().messages;
-    expect(messages.at(-1)?.content).toBe(SIGN_IN_REQUIRED_MESSAGE);
-    expect(apiMocks.sendMessageStream).not.toHaveBeenCalled();
+    expect(apiMocks.sendMessageStream).toHaveBeenCalledOnce();
+    expect(apiMocks.sendMessageStream.mock.calls[0][4]).toBeNull();
     expect(apiMocks.createChat).not.toHaveBeenCalled();
+    expect(useTerminalStore.getState().messages.at(-1)?.content).toBe('Guest answer.');
+  });
+
+  it('asks guests to sign in once the free questions are used', async () => {
+    apiMocks.sendMessageStream.mockImplementation(async (_m, _h, callbacks) => {
+      callbacks.onError('You have used your free guest questions for today. Sign in with your wallet to keep going (valid wallet session is required).');
+    });
+
+    await useTerminalStore.getState().handleSubmit('show market regime', null, null, null, vi.fn(), vi.fn());
+
+    expect(useTerminalStore.getState().messages.at(-1)?.content).toBe(GUEST_LIMIT_REACHED_MESSAGE);
   });
 
   it('streams the answer for signed-in users', async () => {

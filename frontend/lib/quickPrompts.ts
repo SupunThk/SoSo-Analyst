@@ -1,4 +1,6 @@
-export type QuickPromptIcon = 'chart' | 'bank' | 'trend' | 'pie' | 'lock' | 'rocket' | 'news';
+import { signalQuestion } from '@/lib/share';
+
+export type QuickPromptIcon = 'chart' | 'bank' | 'trend' | 'pie' | 'lock' | 'rocket' | 'news' | 'bolt';
 
 export interface QuickPrompt {
   id: string;
@@ -14,6 +16,15 @@ export interface QuickPrompt {
 // Each prompt maps onto a backend tool-routing intent, so every card returns
 // grounded SoSoValue data rather than a generic model answer.
 export const QUICK_PROMPTS: QuickPrompt[] = [
+  {
+    id: 'signal',
+    icon: 'bolt',
+    tag: 'Signal',
+    label: 'BTC Trade Signal',
+    description: 'Price trend and news scored into a long or short bias, with a ticket you can open on SoDEX.',
+    short: 'BTC signal',
+    text: signalQuestion('BTC'),
+  },
   {
     id: 'overview',
     icon: 'chart',
@@ -58,14 +69,5 @@ export const QUICK_PROMPTS: QuickPrompt[] = [
     description: 'Supply, allocation and upcoming unlock schedule for a token.',
     short: 'Unlocks',
     text: 'Show the token economics for Arbitrum (ARB): circulating vs max supply, allocation, and upcoming unlocks with their size.',
-  },
-  {
-    id: 'news',
-    icon: 'news',
-    tag: 'Headlines',
-    label: 'Hot News',
-    description: 'Top stories, why each matters and the market readthrough.',
-    short: 'News',
-    text: 'Give me a headline-first crypto news report: top stories, why each matters, market readthrough, and what to watch next.',
   },
 ];
