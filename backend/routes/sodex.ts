@@ -224,8 +224,15 @@ router.get('/trading/status/:walletAddress', requireSession, requireTradingEnabl
 
 const builderParamsSchema = z.object({ id: z.number().int().positive(), fee: z.number().int().min(0).max(2000) });
 const registerSchema = z.object({
-  kind: z.enum(['addApiKeyWithBuilder', 'approveBuilderFee']),
+  kind: z.enum(['addApiKey', 'addApiKeyWithBuilder', 'approveBuilderFee']),
   body: z.union([
+    z.object({
+      accountID: z.number().int().positive(),
+      name: keyNameSchema,
+      type: z.literal(1),
+      publicKey: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+      expiresAt: z.number().int().nonnegative()
+    }).strict(),
     z.object({
       accountID: z.number().int().positive(),
       name: keyNameSchema,
@@ -256,14 +263,25 @@ router.post('/trading/register/:walletAddress', requireSession, requireTradingEn
 
   const config = getTradingConfig();
   const body: any = data.body;
-  const builderId = data.kind === 'addApiKeyWithBuilder' ? body.builder?.id : body.builderID;
-  const fee = data.kind === 'addApiKeyWithBuilder' ? body.builder?.fee : body.maxFeeRate;
-  if (builderId !== config.builderId || fee !== config.builderFee) {
-    return res.status(400).json({ error: true, message: 'Approval must be for the SoSo Analyst builder code at the published fee.' });
+  const hasBuilderField = Object.prototype.hasOwnProperty.call(body, 'builder');
+  if (data.kind === 'addApiKey') {
+    // A plain trading key (no builder approval), for when no builder is configured.
+    if (hasBuilderField || 'builderID' in body) {
+      return res.status(400).json({ error: true, message: 'A plain trading key must not carry a builder.' });
+    }
+  } else {
+    if (config.builderId === null) {
+      return res.status(400).json({ error: true, message: 'No builder code is configured on this server yet.' });
+    }
+    const builderId = data.kind === 'addApiKeyWithBuilder' ? body.builder?.id : body.builderID;
+    const fee = data.kind === 'addApiKeyWithBuilder' ? body.builder?.fee : body.maxFeeRate;
+    if (builderId !== config.builderId || fee !== config.builderFee) {
+      return res.status(400).json({ error: true, message: 'Approval must be for the SoSo Analyst builder code at the published fee.' });
+    }
   }
 
   try {
-    const path = data.kind === 'addApiKeyWithBuilder'
+    const path = data.kind !== 'approveBuilderFee'
       ? `/user/${walletAddress}/api-keys`
       : `/user/${walletAddress}/builders`;
     const result = await relaySigned(path, body, data.headers);

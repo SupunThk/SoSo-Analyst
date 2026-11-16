@@ -35,6 +35,8 @@ services:
         value: mainnet
       - key: SODEX_REST_BASE_URL
         value: https://mainnet-gw.sodex.dev/api/v1
+      - key: SODEX_TRADING_ENABLED
+        value: "false"
       - key: SODEX_BUILDER_ID
         sync: false
       - key: SODEX_BUILDER_ADDRESS

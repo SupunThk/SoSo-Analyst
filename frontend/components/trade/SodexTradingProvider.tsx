@@ -25,6 +25,7 @@ import {
   StopType,
   TimeInForce,
   TriggerType,
+  addApiKeyTypedData,
   addApiKeyWithBuilderTypedData,
   approveBuilderFeeTypedData,
   buildCancelParams,
@@ -201,7 +202,9 @@ export function SodexTradingProvider({ children }: { children: React.ReactNode }
     if (!status) return error ? 'error' : 'loading';
     if (!status.activated) return 'not_activated';
     const keyReady = Boolean(key && status.apiKey?.registered && key.accountId === status.accountId);
-    const approved = Boolean(status.builder?.approved && (status.builder.perpsFeeRate ?? 0) >= config.builderFee);
+    // With no builder configured yet, a registered key is enough to trade.
+    const approved = config.builderId === null
+      || Boolean(status.builder?.approved && (status.builder.perpsFeeRate ?? 0) >= config.builderFee);
     if (keyReady && approved) return 'ready';
     if (keyReady && !approved) return 'needs_approval';
     return 'needs_enable';
@@ -212,52 +215,66 @@ export function SodexTradingProvider({ children }: { children: React.ReactNode }
   const signChainId = walletChainId ?? 1;
 
   const enableTrading = useCallback(async () => {
-    if (!walletAddress || !token || !config?.enabled || !config.builderId || !status?.accountId) return;
+    if (!walletAddress || !token || !config?.enabled || !status?.accountId) return;
+    const builderId = config.builderId;
     setBusy(true);
     setError(null);
     try {
       const accountID = status.accountId;
       const nonce = nextNonce(walletAddress);
 
-      if (phase === 'needs_approval') {
+      if (phase === 'needs_approval' && builderId !== null) {
         const typed = approveBuilderFeeTypedData({
           walletChainId: signChainId,
           network: config.network,
           nonce,
           accountID,
-          builderID: config.builderId,
+          builderID: builderId,
           maxFeeRate: config.builderFee,
         });
         const signature = await signTypedDataAsync({ ...typed, account: walletAddress as Hex });
         await registerTrading(walletAddress, token, 'approveBuilderFee', {
-          body: { accountID, builderID: config.builderId, maxFeeRate: config.builderFee },
+          body: { accountID, builderID: builderId, maxFeeRate: config.builderFee },
           headers: { 'x-api-sign': withPrefix('0x02', signature), 'x-api-nonce': nonce.toString(), 'x-api-chain': String(signChainId) },
         });
       } else {
         const newKey = createTradingKey(accountID);
-        const typed = addApiKeyWithBuilderTypedData({
-          walletChainId: signChainId,
-          network: config.network,
-          nonce,
+        const keyFields = {
           accountID,
           name: newKey.name,
           publicKey: newKey.address,
           expiresAt: newKey.expiresAt,
-          builderID: config.builderId,
-          maxFeeRate: config.builderFee,
+        };
+        const headersFor = (signature: Hex) => ({
+          'x-api-sign': withPrefix('0x02', signature),
+          'x-api-nonce': nonce.toString(),
+          'x-api-chain': String(signChainId),
         });
-        const signature = await signTypedDataAsync({ ...typed, account: walletAddress as Hex });
-        await registerTrading(walletAddress, token, 'addApiKeyWithBuilder', {
-          body: {
-            accountID,
-            name: newKey.name,
-            type: 1,
-            publicKey: newKey.address,
-            expiresAt: newKey.expiresAt,
-            builder: { id: config.builderId, fee: config.builderFee },
-          },
-          headers: { 'x-api-sign': withPrefix('0x02', signature), 'x-api-nonce': nonce.toString(), 'x-api-chain': String(signChainId) },
-        });
+        if (builderId !== null) {
+          // One signature: register the key and approve the builder fee.
+          const typed = addApiKeyWithBuilderTypedData({
+            walletChainId: signChainId,
+            network: config.network,
+            nonce,
+            ...keyFields,
+            builderID: builderId,
+            maxFeeRate: config.builderFee,
+          });
+          const signature = await signTypedDataAsync({ ...typed, account: walletAddress as Hex });
+          await registerTrading(walletAddress, token, 'addApiKeyWithBuilder', {
+            body: { ...keyFields, type: 1, builder: { id: builderId, fee: config.builderFee } },
+            headers: headersFor(signature),
+          });
+        } else {
+          // No builder code yet: a plain trading key. Approving the builder
+          // later is one more signature.
+          const typed = addApiKeyTypedData({ walletChainId: signChainId, network: config.network, nonce, ...keyFields });
+          const signature = await signTypedDataAsync({ ...typed, account: walletAddress as Hex });
+          await registerTrading(walletAddress, token, 'addApiKey', {
+            body: { ...keyFields, type: 1 },
+            headers: headersFor(signature),
+          });
+        }
         saveTradingKey(walletAddress, config.network, newKey);
         setCreatedKey({ id: `${config.network}:${walletAddress.toLowerCase()}`, key: newKey });
         keyRef.current = newKey;
@@ -266,7 +283,7 @@ export function SodexTradingProvider({ children }: { children: React.ReactNode }
       // SoDEX indexes both engines asynchronously; poll until visible.
       for (let attempt = 0; attempt < 10; attempt += 1) {
         const next = await loadStatus(keyRef.current?.name);
-        if (next?.apiKey?.registered && next.builder?.approved) return;
+        if (next?.apiKey?.registered && (builderId === null || next.builder?.approved)) return;
         await sleep(1500);
       }
       setError('SoDEX accepted the request but it is not visible yet. Refresh in a few seconds.');
@@ -284,7 +301,7 @@ export function SodexTradingProvider({ children }: { children: React.ReactNode }
 
   const requireReady = useCallback(() => {
     const currentKey = keyRef.current;
-    if (phase !== 'ready' || !currentKey || !walletAddress || !token || !config?.builderId || !status?.accountId) {
+    if (phase !== 'ready' || !currentKey || !walletAddress || !token || !config?.enabled || !status?.accountId) {
       throw new Error('Enable trading first.');
     }
     return { currentKey, wallet: walletAddress, authToken: token, cfg: config, accountID: status.accountId };
@@ -354,7 +371,7 @@ export function SodexTradingProvider({ children }: { children: React.ReactNode }
       accountID,
       symbolID: symbol.id,
       orders,
-      builder: { id: cfg.builderId as number, fee: cfg.builderFee },
+      builder: cfg.builderId !== null ? { id: cfg.builderId, fee: cfg.builderFee } : undefined,
     });
     const request = await signTradingAction(apiKey, currentKey.name, cfg.network, 'newOrder', params, nextNonce(currentKey.address));
     const response = await submitOrder(wallet, authToken, symbol.name, input.source, request);
@@ -387,7 +404,7 @@ export function SodexTradingProvider({ children }: { children: React.ReactNode }
         reduceOnly: true,
         positionSide: PositionSide.BOTH,
       }],
-      builder: { id: cfg.builderId as number, fee: cfg.builderFee },
+      builder: cfg.builderId !== null ? { id: cfg.builderId, fee: cfg.builderFee } : undefined,
     });
     const request = await signTradingAction(apiKey(currentKey), currentKey.name, cfg.network, 'newOrder', params, nextNonce(currentKey.address));
     const response = await submitOrder(wallet, authToken, symbol.name, 'positions', request);

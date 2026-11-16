@@ -84,7 +84,7 @@ GEMINI_TOOL_PAYLOAD_MAX_CHARS=12000
 
 Optional switches: `GEMINI_MODEL_FLASH`, `GEMINI_MODEL_PRO`, `GEMINI_MODEL_LIGHT` and `GEMINI_MODEL_SEARCH` pick the Gemini models (all default to the 2.5 family; Gemini 3 ids such as `gemini-3-flash-preview` also work, so a model switch or rollback is an env change). `GEMINI_GOOGLE_SEARCH=off` disables the `search_web` tool (Google Search grounding for regulation, hacks and other news). `LLM_INTENT_CLASSIFIER=off` turns off the cached LLM fallback router, leaving regex routing only. Compare model sets with `npm run eval:models` (live, uses your API keys).
 
-**In-app SoDEX trading** stays off until `SODEX_BUILDER_ID` is set:
+**In-app SoDEX trading** turns on when `SODEX_BUILDER_ID` is set. To launch trading before you have a builder account, set `SODEX_TRADING_ENABLED=true`: users register a plain trading key and orders carry no builder code. Once `SODEX_BUILDER_ID` is added, existing users approve the builder fee with one signature and every later order carries it.
 
 ```env
 SODEX_BUILDER_ID=your_builder_account_id      # data.aid from GET /perps/accounts/{builderWallet}/state

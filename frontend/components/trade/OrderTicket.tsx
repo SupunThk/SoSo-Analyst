@@ -59,7 +59,8 @@ export default function OrderTicket({ request, onClose }: { request: TicketReque
 
   const notional = preview?.notionalUsd ?? 0;
   const margin = notional / leverage;
-  const builderFeeUsd = config ? notional * (config.builderFee / 1000) / 100 : 0;
+  const hasBuilder = config?.builderId != null;
+  const builderFeeUsd = config && hasBuilder ? notional * (config.builderFee / 1000) / 100 : 0;
   const available = status?.availableMarginUsd ?? null;
 
   const blockers: string[] = [];
@@ -222,7 +223,7 @@ export default function OrderTicket({ request, onClose }: { request: TicketReque
                 ['Order value', usd(notional)],
                 ['Margin used', usd(margin)],
                 ['Stop-loss / TP', `${sl ? `${sl}%` : 'none'} / ${tp ? `${tp}%` : 'none'}`],
-                ['SoSo Analyst builder fee', `${config ? builderFeePct(config.builderFee) : ''} ≈ ${usd(builderFeeUsd)}`],
+                ['SoSo Analyst builder fee', hasBuilder && config ? `${builderFeePct(config.builderFee)} ≈ ${usd(builderFeeUsd)}` : 'none'],
                 ['SoDEX trading fee', 'per your SoDEX fee tier'],
                 ['Available margin', available === null ? '—' : usd(available)],
               ].map(([label, value]) => (

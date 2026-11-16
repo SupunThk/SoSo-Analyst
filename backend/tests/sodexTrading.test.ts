@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import express from 'express';
 import axios from 'axios';
 import { ethers } from 'ethers';
@@ -259,5 +259,59 @@ describe('trade ideas', () => {
     expect(buildTradeIdea({ synthesis: synthesis(80), toolCalls: [{ input: { asset: 'BTC' } }, { input: { asset: 'ETH' } }], perpsSymbols: perps })).toBeNull();
     expect(buildTradeIdea({ synthesis: synthesis(80), toolCalls: [{ input: { asset: 'PEPE' } }], perpsSymbols: perps })).toBeNull();
     expect(buildTradeIdea({ synthesis: { directionalScore: null }, toolCalls: [{ input: { asset: 'BTC' } }], perpsSymbols: perps })).toBeNull();
+  });
+});
+
+describe('trading before a builder code exists', () => {
+  const headers = { 'x-api-key': 'soso-analyst-abc123', 'x-api-sign': SIG_01, 'x-api-nonce': '1794790000000' };
+  const keyBody = () => ({
+    accountID: 42, name: 'soso-analyst-abc123', type: 1,
+    publicKey: ethers.Wallet.createRandom().address, expiresAt: Date.now() + 1000
+  });
+
+  beforeEach(() => {
+    delete process.env.SODEX_BUILDER_ID;
+    process.env.SODEX_TRADING_ENABLED = 'true';
+  });
+  afterEach(() => {
+    process.env.SODEX_BUILDER_ID = '777';
+    delete process.env.SODEX_TRADING_ENABLED;
+  });
+
+  it('turns trading on with SODEX_TRADING_ENABLED and no builder ID', () => {
+    expect(getTradingConfig()).toMatchObject({ enabled: true, builderId: null });
+    delete process.env.SODEX_TRADING_ENABLED;
+    expect(getTradingConfig().enabled).toBe(false);
+  });
+
+  it('accepts orders without a builder and refuses orders paying any builder', () => {
+    expect(checkPerpsOrder(orderBody({ builder: undefined })).ok).toBe(true);
+    expect(checkPerpsOrder(orderBody({ builder: { id: 777, fee: 50 } })).ok).toBe(false);
+  });
+
+  it('relays a plain key registration and refuses builder approvals', async () => {
+    const plain = await post(`/api/sodex/trading/register/${wallet}`, {
+      kind: 'addApiKey',
+      body: keyBody(),
+      headers: { 'x-api-sign': SIG_02, 'x-api-nonce': '1', 'x-api-chain': '1' }
+    });
+    expect(plain.status).toBe(200);
+    expect(relayed[0].url).toMatch(new RegExp(`/user/${wallet}/api-keys$`));
+    expect(relayed[0].data.builder).toBeUndefined();
+
+    const withBuilder = await post(`/api/sodex/trading/register/${wallet}`, {
+      kind: 'addApiKeyWithBuilder',
+      body: { ...keyBody(), builder: { id: 777, fee: 50 } },
+      headers: { 'x-api-sign': SIG_02, 'x-api-nonce': '2', 'x-api-chain': '1' }
+    });
+    expect(withBuilder.status).toBe(400);
+    expect(relayed).toHaveLength(1);
+  });
+
+  it('relays an order without a builder field', async () => {
+    const { builder, ...noBuilder } = orderBody();
+    const response = await post(`/api/sodex/trading/order/${wallet}`, { symbol: 'BTC-USD', body: noBuilder, headers });
+    expect(response.status).toBe(200);
+    expect(relayed[0].data.builder).toBeUndefined();
   });
 });

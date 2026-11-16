@@ -47,7 +47,7 @@ export default function EnableTradingCard({ compact = false }: { compact?: boole
       break;
     case 'needs_approval':
       title = 'Approve the builder fee';
-      body = `Your trading key is set up. Approve SoSo Analyst's ${fee} builder fee to place orders.`;
+      body = `Your trading key is set up. SoSo Analyst now charges a ${fee} builder fee on each fill; approve it once to keep placing orders here.`;
       action = (
         <button type="button" disabled={busy} onClick={() => void enableTrading()} className={PRIMARY_BTN}>
           {busy ? 'Waiting for wallet…' : 'Approve in wallet'}
@@ -62,7 +62,11 @@ export default function EnableTradingCard({ compact = false }: { compact?: boole
     default:
       body = (
         <ul className="space-y-1.5">
-          <li>• One wallet signature creates an app trading key for your SoDEX{network} account and approves a <span className="text-white">{fee} builder fee</span> to SoSo Analyst on each fill.</li>
+          {config?.builderId != null ? (
+            <li>• One wallet signature creates an app trading key for your SoDEX{network} account and approves a <span className="text-white">{fee} builder fee</span> to SoSo Analyst on each fill.</li>
+          ) : (
+            <li>• One wallet signature creates an app trading key for your SoDEX{network} account.</li>
+          )}
           <li>• The key can only place and cancel orders. It cannot withdraw or transfer funds, and it expires in 7 days.</li>
           <li>• The key stays in this browser, and you confirm every order.</li>
         </ul>

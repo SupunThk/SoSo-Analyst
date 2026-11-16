@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { keccak256, recoverTypedDataAddress, toHex, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import {
+  addApiKeyTypedData,
   addApiKeyWithBuilderTypedData,
   buildNewOrderParams,
   canonicalDecimal,
@@ -100,6 +101,25 @@ describe('signatures', () => {
     });
     expect(typed.domain).toMatchObject({ name: 'universal', chainId: 8453 });
     expect(typed.message.chainID).toBe(BigInt(286623));
+    const signature = await WALLET.signTypedData(typed);
+    expect(await recoverTypedDataAddress({ ...typed, signature })).toBe(WALLET.address);
+  });
+
+  it('builds a plain key registration (no builder) matching the SDK type', async () => {
+    const typed = addApiKeyTypedData({
+      walletChainId: 1,
+      network: 'testnet',
+      nonce: BigInt(7),
+      accountID: 42,
+      name: 'soso-analyst-abc123',
+      publicKey: API_KEY.address,
+      expiresAt: 1_800_000_000_000,
+    });
+    expect(typed.primaryType).toBe('UserSignedAddAPIKeyAction');
+    expect(typed.types.UserSignedAddAPIKeyAction.map((field) => `${field.type} ${field.name}`).join(',')).toBe(
+      'uint64 chainID,uint64 nonce,uint64 accountID,string name,uint8 keyType,bytes publicKey,uint64 expiresAt',
+    );
+    expect(typed.message.chainID).toBe(BigInt(138565));
     const signature = await WALLET.signTypedData(typed);
     expect(await recoverTypedDataAddress({ ...typed, signature })).toBe(WALLET.address);
   });

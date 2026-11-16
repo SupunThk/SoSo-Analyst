@@ -43,7 +43,9 @@ export const getTradingConfig = (): TradingConfig => {
     : null;
 
   return {
-    enabled: builderId !== null,
+    // Trading turns on with a builder ID, or explicitly with SODEX_TRADING_ENABLED
+    // (orders then carry no builder code until SODEX_BUILDER_ID is set).
+    enabled: builderId !== null || process.env.SODEX_TRADING_ENABLED === 'true',
     network,
     chainId: SODEX_CHAIN_IDS[network],
     builderId,
@@ -151,8 +153,13 @@ export const checkPerpsOrder = (body: any, config = getTradingConfig()): OrderCh
   if (!body || typeof body !== 'object') return { ok: false, reason: 'Order body is required.' };
 
   const { builder, orders } = body;
-  if (!builder || Number(builder.id) !== config.builderId || Number(builder.fee) !== config.builderFee) {
-    return { ok: false, reason: 'Order must carry the SoSo Analyst builder code.' };
+  if (config.builderId !== null) {
+    if (!builder || Number(builder.id) !== config.builderId || Number(builder.fee) !== config.builderFee) {
+      return { ok: false, reason: 'Order must carry the SoSo Analyst builder code.' };
+    }
+  } else if (builder !== undefined) {
+    // No builder configured yet: refuse orders that would pay someone else.
+    return { ok: false, reason: 'Orders may not carry a builder code on this server.' };
   }
   if (!Array.isArray(orders) || orders.length < 1 || orders.length > 3) {
     return { ok: false, reason: 'Submit one entry order, optionally with a take-profit and stop-loss.' };

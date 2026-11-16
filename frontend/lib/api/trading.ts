@@ -84,7 +84,7 @@ export async function fetchTradingStatus(wallet: string, token: string, keyName?
 export const registerTrading = (
   wallet: string,
   token: string,
-  kind: 'addApiKeyWithBuilder' | 'approveBuilderFee',
+  kind: 'addApiKey' | 'addApiKeyWithBuilder' | 'approveBuilderFee',
   request: SignedRequest,
 ) => postJson<{ ok: boolean }>(`/api/sodex/trading/register/${wallet}`, token, { kind, ...request });
 

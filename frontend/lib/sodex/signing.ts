@@ -202,6 +202,44 @@ const universalDomain = (walletChainId: number) => ({
   verifyingContract: ZERO_ADDRESS,
 });
 
+// A trading key without a builder approval (used while no builder code is
+// configured). Matches the Go SDK's UserSignedAddAPIKeyAction, the variant
+// used when a signature chain ID (X-API-Chain) is sent.
+export function addApiKeyTypedData(input: {
+  walletChainId: number;
+  network: SodexNetwork;
+  nonce: bigint;
+  accountID: number;
+  name: string;
+  publicKey: Hex;
+  expiresAt: number;
+}) {
+  return {
+    domain: universalDomain(input.walletChainId),
+    types: {
+      UserSignedAddAPIKeyAction: [
+        { name: 'chainID', type: 'uint64' },
+        { name: 'nonce', type: 'uint64' },
+        { name: 'accountID', type: 'uint64' },
+        { name: 'name', type: 'string' },
+        { name: 'keyType', type: 'uint8' },
+        { name: 'publicKey', type: 'bytes' },
+        { name: 'expiresAt', type: 'uint64' },
+      ],
+    },
+    primaryType: 'UserSignedAddAPIKeyAction' as const,
+    message: {
+      chainID: BigInt(SODEX_CHAIN_IDS[input.network]),
+      nonce: input.nonce,
+      accountID: BigInt(input.accountID),
+      name: input.name,
+      keyType: 1,
+      publicKey: input.publicKey,
+      expiresAt: BigInt(input.expiresAt),
+    },
+  };
+}
+
 export function addApiKeyWithBuilderTypedData(input: {
   walletChainId: number;
   network: SodexNetwork;
