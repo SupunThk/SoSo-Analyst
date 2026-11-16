@@ -8,6 +8,7 @@ SoSo Analyst is a professional AI-powered crypto research terminal. It allows us
 - **Real-time data**: Proxies SoSoValue API endpoints for market data, ETF flows, public company holdings, macro events, news, indices, and sector intelligence.
 - **Trading terminal**: Includes charting, order book depth, recent trades, and technical indicators powered by `lightweight-charts`.
 - **Wallet sessions**: Chat requires signing in with a wallet (an EIP-4361 message). Signing proves ownership only and never authorizes a blockchain transaction.
+- **SoDEX trading with a builder code**: Users can trade SoDEX perps from the charts page, Perps Radar, and AI trade signals in chat. One optional wallet signature registers a browser-held trading key and approves the SoSo Analyst builder fee (0.05%). Each order is reviewed on a confirm step, with size, leverage, and notional limits checked again on the server. The `/builder` page shows live builder stats: traders, volume, fills, and fees.
 - **Secure architecture**: API keys stay server-side. Backend routes include request validation, rate limits, CORS restrictions, and health checks.
 
 ## Tech Stack
@@ -68,6 +69,19 @@ GEMINI_TOOL_PAYLOAD_MAX_CHARS=12000
 ```
 
 Optional switches: `GEMINI_MODEL_FLASH`, `GEMINI_MODEL_PRO`, `GEMINI_MODEL_LIGHT` and `GEMINI_MODEL_SEARCH` pick the Gemini models (all default to the 2.5 family; Gemini 3 ids such as `gemini-3-flash-preview` also work, so a model switch or rollback is an env change). `GEMINI_GOOGLE_SEARCH=off` disables the `search_web` tool (Google Search grounding for regulation, hacks and other news). `LLM_INTENT_CLASSIFIER=off` turns off the cached LLM fallback router, leaving regex routing only. Compare model sets with `npm run eval:models` (live, uses your API keys).
+
+**In-app SoDEX trading** stays off until `SODEX_BUILDER_ID` is set:
+
+```env
+SODEX_BUILDER_ID=your_builder_account_id      # data.aid from GET /perps/accounts/{builderWallet}/state
+SODEX_BUILDER_ADDRESS=0xYourBuilderWallet     # used for the /builder stats page
+SODEX_BUILDER_FEE=50                          # tenths of a basis point: 50 = 0.05% (perps cap 200)
+SODEX_MAX_ORDER_NOTIONAL_USD=1000
+SODEX_MAX_LEVERAGE=10
+TRADING_RATE_LIMIT_PER_MINUTE=30
+```
+
+The builder account must hold at least 100 vUSDC in Spot and 100 vUSDC in Perps on the selected network. To test on testnet, set `SODEX_NETWORK=testnet` and `SODEX_REST_BASE_URL=https://testnet-gw.sodex.dev/api/v1`. Builder statistics are only served on mainnet.
 
 `ETHERSCAN_CHAIN_IDS` controls the EVM chains scanned for wallet portfolio analysis. Defaults cover Ethereum, Base, BNB Smart Chain, Polygon, Arbitrum, OP Mainnet, and Avalanche C-Chain. Some Etherscan V2 chains require a paid API tier; failed chains are reported in the portfolio response instead of failing the whole analysis.
 

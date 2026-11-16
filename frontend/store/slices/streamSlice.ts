@@ -168,7 +168,7 @@ export const createStreamSlice = (set: TerminalSet, get: TerminalGet): StreamSli
       onDone: (response) => {
         streamCompleted = true;
         if (hasAddedMsg) {
-          get().setMessages((prev: Message[]) => prev.map((m: Message) => m.id === assistantMsgId ? { ...m, content: response.answer, toolCalls: response.toolCalls, analysisSynthesis: response.analysisSynthesis } : m));
+          get().setMessages((prev: Message[]) => prev.map((m: Message) => m.id === assistantMsgId ? { ...m, content: response.answer, toolCalls: response.toolCalls, analysisSynthesis: response.analysisSynthesis, tradeIdea: response.tradeIdea ?? null } : m));
         } else {
           get().setMessages((prev: Message[]) => [...prev, {
             id: assistantMsgId,
@@ -176,6 +176,7 @@ export const createStreamSlice = (set: TerminalSet, get: TerminalGet): StreamSli
             content: response.answer,
             toolCalls: response.toolCalls,
             analysisSynthesis: response.analysisSynthesis,
+            tradeIdea: response.tradeIdea ?? null,
             timestamp: new Date(),
           }]);
         }
@@ -233,6 +234,7 @@ export const createStreamSlice = (set: TerminalSet, get: TerminalGet): StreamSli
               content: m.content,
               toolCalls: m.toolCalls || [],
               analysisSynthesis: m.analysisSynthesis || null,
+              tradeIdea: m.tradeIdea || null,
               feedback: m.feedback || null,
               persistedIndex: i,
               timestamp: new Date(m.timestamp)

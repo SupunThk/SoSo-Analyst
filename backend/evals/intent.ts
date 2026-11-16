@@ -48,6 +48,15 @@ const matchesGoldenExpectation = (goldenCase, inference) => {
     return suggested.length === 0;
   }
 
+  // Over-inclusion checks: routes that add unrelated tools fail too.
+  const forbidden = goldenCase.forbiddenTools || [];
+  if (forbidden.some((tool) => suggested.includes(tool))) {
+    return false;
+  }
+  if (typeof goldenCase.maxTools === 'number' && suggested.length > goldenCase.maxTools) {
+    return false;
+  }
+
   if (matchMode === 'any') {
     return expected.some((tool) => suggested.includes(tool));
   }

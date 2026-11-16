@@ -13,6 +13,7 @@ export interface Message {
   content: string;
   toolCalls?: ToolCall[];
   analysisSynthesis?: AnalysisSynthesis | null;
+  tradeIdea?: TradeIdea | null;
   feedback?: MessageFeedback | null;
   persistedIndex?: number;
   timestamp: Date;
@@ -34,6 +35,19 @@ export interface ChatResponse {
   answer: string;
   toolCalls: ToolCall[];
   analysisSynthesis?: AnalysisSynthesis | null;
+  tradeIdea?: TradeIdea | null;
+}
+
+export interface TradeIdea {
+  symbol: string;
+  asset: string;
+  side: 'long' | 'short';
+  directionalScore: number;
+  riskScore: number | null;
+  confidence: 'low' | 'medium' | 'high';
+  rationale: string[];
+  riskFlags: string[];
+  suggestedStopPct: number;
 }
 
 export interface AnalysisSynthesis {
@@ -246,6 +260,7 @@ export interface PersistedChatMessage {
   content: string;
   toolCalls?: ToolCall[];
   analysisSynthesis?: AnalysisSynthesis | null;
+  tradeIdea?: TradeIdea | null;
   feedback?: MessageFeedback | null;
   timestamp: string | Date;
 }

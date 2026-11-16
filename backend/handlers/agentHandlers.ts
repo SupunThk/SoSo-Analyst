@@ -6,6 +6,7 @@ import { hashWallet } from '../utils/auth.ts';
 import { formatGeminiErrorMessage } from '../clients/gemini.ts';
 import { getToolAllowlist } from '../ai/toolRouting.ts';
 import { runAgentLoop } from '../ai/agentLoop.ts';
+import { attachTradeIdea } from '../analysis/tradeIdea.ts';
 import {
   sanitizeConversationHistory,
   chatRequestSchema,
@@ -38,7 +39,7 @@ const handleChat = async (req, res) => {
         routing: toolAllowlist.routing
       }
     );
-    const result = await runAgentLoop(contents, {
+    const loopResult = await runAgentLoop(contents, {
       toolContext: { walletAddress: walletContext.verifiedWalletAddress },
       initialToolResults: preload.initialToolResults,
       userMessage: payload.userMessage,
@@ -47,6 +48,7 @@ const handleChat = async (req, res) => {
       intent: toolAllowlist.intent,
       requestId: req.id
     });
+    const result = await attachTradeIdea(loopResult);
     res.json(result);
   } catch (error) {
     if (error.status) {
@@ -118,7 +120,7 @@ const handleChatStream = async (req, res) => {
         routing: toolAllowlist.routing
       }
     );
-    const result = await runAgentLoop(contents, {
+    const loopResult = await runAgentLoop(contents, {
       toolContext: { walletAddress: walletContext.verifiedWalletAddress },
       initialToolResults: preload.initialToolResults,
       userMessage: payload.userMessage,
@@ -137,6 +139,7 @@ const handleChatStream = async (req, res) => {
       return;
     }
 
+    const result = await attachTradeIdea(loopResult);
     send('status', { phase: 'generating', message: 'Synthesizing analysis...' });
     send('done', result);
 
@@ -173,7 +176,14 @@ const saveStreamedChat = async (req, payload, walletContext, result) => {
           messages: {
             $each: [
               { role: 'user', content: payload.userMessage, timestamp: new Date() },
-              { role: 'assistant', content: result.answer, toolCalls: result.toolCalls, timestamp: new Date() }
+              {
+                role: 'assistant',
+                content: result.answer,
+                toolCalls: result.toolCalls,
+                analysisSynthesis: result.analysisSynthesis ?? null,
+                tradeIdea: result.tradeIdea ?? null,
+                timestamp: new Date()
+              }
             ]
           }
         }

@@ -105,6 +105,14 @@ const marketLimiter = rateLimit({
   handler: createRateLimitHandler('Market dashboard rate limit reached. Please wait a moment while cached data is used.')
 });
 
+const tradingLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: Number(process.env.TRADING_RATE_LIMIT_PER_MINUTE) || 30,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  handler: createRateLimitHandler('Trading request rate limit reached. Please wait a moment and try again.')
+});
+
 const getMongoHealth = () => ({
   configured: Boolean(process.env.MONGO_URI),
   connected: mongoose.connection.readyState === 1,
@@ -170,6 +178,7 @@ import marketRoutes from './routes/market.ts';
 app.use('/api/soso', marketLimiter, sosoRoutes);
 app.use('/api/agent', agentLimiter, agentRoutes);
 app.use('/api/chats', chatLimiter, chatRoutes);
+app.use('/api/sodex/trading', tradingLimiter);
 app.use('/api/sodex', marketLimiter, sodexRoutes);
 app.use('/api/market', marketLimiter, marketRoutes);
 

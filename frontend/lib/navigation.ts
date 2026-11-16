@@ -7,6 +7,7 @@ export const NAV_ITEMS: { href: string; label: string; icon: IconName }[] = [
   { href: '/indexes', label: 'Indexes', icon: 'pie' },
   { href: '/profile', label: 'Dashboard', icon: 'briefcase' },
   { href: '/charts', label: 'Charts', icon: 'trend' },
+  { href: '/builder', label: 'Builder', icon: 'rocket' },
 ];
 
 export const isNavActive = (pathname: string, href: string) =>

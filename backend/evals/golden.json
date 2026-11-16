@@ -260,6 +260,78 @@
     "expectedTools": ["get_perp_market"],
     "intent": "perps",
     "expectedBudget": "standard"
+  },
+  {
+    "id": "regression-funding-not-macro",
+    "query": "BTC funding rates",
+    "expectedTools": ["get_perp_market"],
+    "forbiddenTools": ["get_macro_crypto_calendar", "get_macro_event_history", "get_fed_rate_outlook"],
+    "intent": "perps",
+    "expectedBudget": "standard"
+  },
+  {
+    "id": "regression-venue-vs-not-compare",
+    "query": "what are funding rates on hyperliquid vs binance",
+    "expectedTools": ["get_perp_market"],
+    "forbiddenTools": ["compare_assets", "get_macro_crypto_calendar"],
+    "intent": "perps",
+    "expectedBudget": "standard"
+  },
+  {
+    "id": "regression-long-short-ratio",
+    "query": "what is the long short ratio on binance",
+    "expectedTools": ["get_analysis_chart"],
+    "forbiddenTools": ["get_market_intelligence", "get_sector_spotlight"],
+    "intent": "derivatives_onchain",
+    "expectedBudget": "simple"
+  },
+  {
+    "id": "regression-etf-happening",
+    "query": "what is happening with ETH ETF flows",
+    "expectedTools": ["get_etf_flow_brief"],
+    "maxTools": 2,
+    "intent": "etf_flow",
+    "expectedBudget": "standard"
+  },
+  {
+    "id": "regression-market-doing",
+    "query": "what is the market doing",
+    "expectedTools": ["get_market_intelligence"],
+    "forbiddenTools": ["get_asset_snapshot"],
+    "intent": "market_overview",
+    "matchMode": "any",
+    "expectedBudget": "market"
+  },
+  {
+    "id": "regression-fundraising-phrasing",
+    "query": "did Eigenlayer raise funding",
+    "expectedTools": ["get_fundraising_overview"],
+    "intent": "fundraising",
+    "expectedBudget": "standard"
+  },
+  {
+    "id": "regression-liquidations",
+    "query": "liquidations today",
+    "expectedTools": ["get_perp_market", "get_analysis_chart"],
+    "matchMode": "any",
+    "intent": "perps",
+    "expectedBudget": "standard"
+  },
+  {
+    "id": "regression-total-market-cap",
+    "query": "total crypto market cap",
+    "expectedTools": ["get_crypto_market_overview"],
+    "forbiddenTools": ["get_asset_snapshot"],
+    "intent": "crypto_market_size",
+    "expectedBudget": "simple"
+  },
+  {
+    "id": "regression-coin-lowercase",
+    "query": "what is the price of this coin",
+    "expectedTools": ["get_asset_snapshot"],
+    "forbiddenTools": ["get_crypto_equities_watchlist"],
+    "intent": "asset_snapshot",
+    "expectedBudget": "simple"
   }
 ]
 

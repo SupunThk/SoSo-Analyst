@@ -34,7 +34,7 @@ const DISCLAIMER_ITEMS = [
   {
     code: 'AUTH',
     title: 'Wallet Connection',
-    text: 'Connecting your wallet is used for authentication and chat persistence only. We never request token approvals or transaction signatures beyond identity verification.',
+    text: 'Connecting your wallet signs you in and saves your chats. We never request token approvals or blockchain transactions. SoDEX trading is optional: it asks for one extra signature only when you choose to enable it, and every order needs your confirmation.',
   },
 ];
 

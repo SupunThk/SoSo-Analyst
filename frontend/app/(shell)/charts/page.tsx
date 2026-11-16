@@ -2,6 +2,8 @@
 
 import React, { useState } from 'react';
 import dynamic from 'next/dynamic';
+import { useSodexTrading } from '@/components/trade/SodexTradingProvider';
+import PositionsPanel from '@/components/trade/PositionsPanel';
 
 // Dynamically import the charting components with SSR disabled
 const TradingViewChart = dynamic(
@@ -39,6 +41,7 @@ const SELECT_CLASS =
 export default function ChartsPage() {
   const [symbol, setSymbol] = useState('BTC-USD');
   const [candleInterval, setCandleInterval] = useState('1m');
+  const { openTicket } = useSodexTrading();
 
   const handleTradeRedirect = () => {
     // Open SoDEX in a new tab with the pre-filled trade parameters
@@ -92,23 +95,43 @@ export default function ChartsPage() {
         </div>
 
         {/* Action Area */}
-        <div className="flex flex-col md:flex-row justify-between items-center bg-[#060A06] border border-border/50 p-4 md:p-6 rounded-lg mb-10">
-          <div className="mb-4 md:mb-0">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-[#060A06] border border-border/50 p-4 md:p-6 rounded-lg mb-4">
+          <div>
             <h2 className="text-white font-mono tracking-tight mb-1 text-lg">
-              Ready to execute?
+              Trade {symbol} on SoDEX
             </h2>
             <p className="text-text-secondary text-sm">
-              Deploy your capital on SoDEX with 0% slippage and minimal fees.
+              Place a perps order here without leaving SoSo Analyst. You review and confirm every order.
             </p>
           </div>
-          
-          <button
-            type="button"
-            onClick={handleTradeRedirect}
-            className="rounded-md bg-[#00FF9D] px-8 py-3 font-mono text-sm font-bold uppercase tracking-[0.08em] text-black transition-all hover:bg-[#00cc7d] hover:shadow-[0_0_15px_rgba(0,255,157,0.4)]"
-          >
-            [ PLACE TRADE ON SODEX ]
-          </button>
+
+          <div className="flex w-full flex-wrap gap-2 md:w-auto">
+            <button
+              type="button"
+              onClick={() => openTicket({ symbol, side: 'long', source: 'charts' })}
+              className="flex-1 rounded-md bg-[#00FF9D] px-6 py-3 font-mono text-sm font-bold uppercase tracking-[0.08em] text-black transition-all hover:bg-[#00cc7d] md:flex-none"
+            >
+              Long
+            </button>
+            <button
+              type="button"
+              onClick={() => openTicket({ symbol, side: 'short', source: 'charts' })}
+              className="flex-1 rounded-md bg-accent-red px-6 py-3 font-mono text-sm font-bold uppercase tracking-[0.08em] text-black transition-all hover:opacity-90 md:flex-none"
+            >
+              Short
+            </button>
+            <button
+              type="button"
+              onClick={handleTradeRedirect}
+              className="rounded-md border border-white/20 px-4 py-3 font-mono text-xs uppercase tracking-wider text-text-secondary transition-colors hover:border-white/40 hover:text-white"
+            >
+              Open on SoDEX ↗
+            </button>
+          </div>
+        </div>
+
+        <div className="mb-10">
+          <PositionsPanel />
         </div>
 
         {/* ═══ SoDEX MARKET ANALYTICS ═══ */}

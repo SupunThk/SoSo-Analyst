@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Icon } from '@/components/ui/Icon';
+import TradeAssetButton from '@/components/trade/TradeAssetButton';
 import {
   fetchPerpAsset,
   fetchPerpBoard,
@@ -56,6 +57,21 @@ const REGIME: Record<FundingRegime, { label: string; className: string }> = {
 
 const VENUE_LABEL: Record<string, string> = { BINANCE: 'Binance', HYPERLIQUID: 'Hyperliquid', SODEX: 'SoDEX' };
 const venueName = (venue: string) => VENUE_LABEL[venue] || venue;
+
+// Positioning context shown on the order ticket. Informational only: the side
+// is never prefilled from the radar.
+const regimeContext = (detail: PerpAssetDetail) => {
+  const apr = detail.oiWeightedFundingAprPct;
+  const aprText = apr === null ? '' : ` (OI-weighted funding ${pct(apr)} APR)`;
+  switch (detail.fundingRegime) {
+    case 'crowded_longs': return `Crowded longs${aprText}: longs are paying shorts, and a long squeeze is the larger risk.`;
+    case 'long_leaning': return `Long leaning${aprText}: longs pay a modest funding premium.`;
+    case 'crowded_shorts': return `Crowded shorts${aprText}: shorts are paying longs, and a short squeeze is the larger risk.`;
+    case 'short_leaning': return `Short leaning${aprText}: shorts pay a modest funding premium.`;
+    case 'neutral': return `Funding is neutral${aprText}.`;
+    default: return undefined;
+  }
+};
 
 const askAnalyst = (query: string) => {
   window.dispatchEvent(new CustomEvent('soso:run-query', { detail: { query } }));
@@ -160,13 +176,20 @@ function AssetDetail({ asset }: { asset: string }) {
     <Panel
       title={`${asset} contracts by venue`}
       action={
-        <button
-          type="button"
-          onClick={() => askAnalyst(`Analyze ${asset} perpetual futures positioning: funding across venues, open interest, depth, and what it implies for squeeze risk.`)}
-          className="inline-flex items-center gap-1.5 rounded-md border border-accent-green/35 bg-accent-green/[0.06] px-2.5 py-1 font-sans text-xs font-medium text-accent-green transition-colors hover:border-accent-green/70"
-        >
-          Ask analyst <Icon name="arrowRight" size={13} />
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <TradeAssetButton
+            asset={asset}
+            source="radar"
+            context={detail && detail.asset === asset ? regimeContext(detail) : undefined}
+          />
+          <button
+            type="button"
+            onClick={() => askAnalyst(`Analyze ${asset} perpetual futures positioning: funding across venues, open interest, depth, and what it implies for squeeze risk.`)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-accent-green/35 bg-accent-green/[0.06] px-2.5 py-1 font-sans text-xs font-medium text-accent-green transition-colors hover:border-accent-green/70"
+          >
+            Ask analyst <Icon name="arrowRight" size={13} />
+          </button>
+        </div>
       }
     >
       {error ? (

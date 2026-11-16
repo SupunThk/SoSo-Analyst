@@ -62,6 +62,11 @@ const messageSchema = new mongoose.Schema({
     type: analysisSynthesisSchema,
     default: null,
   },
+  // Optional SoDEX trade idea derived from the synthesis (see analysis/tradeIdea.ts).
+  tradeIdea: {
+    type: Object,
+    default: null,
+  },
   feedback: {
     type: messageFeedbackSchema,
     default: null,

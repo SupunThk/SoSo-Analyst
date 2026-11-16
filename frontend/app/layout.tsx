@@ -24,6 +24,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Web3Provider } from "@/components/Web3Provider";
 import { Toaster } from "react-hot-toast";
 import { CommandPalette } from "@/components/CommandPalette";
+import { SodexTradingProvider } from "@/components/trade/SodexTradingProvider";
 
 export default function RootLayout({
   children,
@@ -36,12 +37,14 @@ export default function RootLayout({
         <ErrorBoundary>
           <Web3Provider>
             <AuthProvider>
-              <a href="#main-content" className="skip-link">
-                Skip to main content
-              </a>
-              {children}
-              <CommandPalette />
-              <Toaster position="bottom-right" toastOptions={{ className: 'font-mono text-sm', style: { background: '#050805', color: '#00ff9d', border: '1px solid rgba(0, 255, 157, 0.3)' } }} />
+              <SodexTradingProvider>
+                <a href="#main-content" className="skip-link">
+                  Skip to main content
+                </a>
+                {children}
+                <CommandPalette />
+                <Toaster position="bottom-right" toastOptions={{ className: 'font-mono text-sm', style: { background: '#050805', color: '#00ff9d', border: '1px solid rgba(0, 255, 157, 0.3)' } }} />
+              </SodexTradingProvider>
             </AuthProvider>
           </Web3Provider>
         </ErrorBoundary>

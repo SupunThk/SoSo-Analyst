@@ -70,6 +70,7 @@ export const createChatSessionSlice = (set: TerminalSet, get: TerminalGet): Chat
             content: m.content,
             toolCalls: m.toolCalls || [],
             analysisSynthesis: m.analysisSynthesis || null,
+            tradeIdea: m.tradeIdea || null,
             feedback: m.feedback || null,
             persistedIndex: i,
             timestamp: new Date(m.timestamp)

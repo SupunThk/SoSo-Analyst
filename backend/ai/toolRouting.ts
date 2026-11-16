@@ -8,7 +8,31 @@ const BUDGET_TIERS = {
   portfolio: { max: 6 }
 };
 
-const ROUTING_RULES = [
+interface RoutingRule {
+  intent: string;
+  pattern: RegExp;
+  // Broad phrasing that should only route here when no specific rule matched.
+  weakPattern?: RegExp;
+  // Case-sensitive extra pattern (for tickers that are also common words).
+  casedPattern?: RegExp;
+  // Never route here when this matches.
+  exclude?: RegExp;
+  // The whole rule is broad: it only applies when no specific rule matched.
+  weak?: boolean;
+  tools: string[];
+  budget: string;
+  followUp: string;
+}
+
+const FUNDRAISING_PATTERN =
+  /\b(fundraising|funding rounds?|vcs?|venture capital|investment rounds?|seed rounds?|series [a-d])\b|\brais(?:e|ed|es|ing)\b.{0,40}\b(?:funding|capital|rounds?|money)\b/i;
+
+// Crypto-equity tickers. Case-sensitive on purpose: only the capitalised
+// "COIN" is the Coinbase ticker.
+const EQUITY_TICKER_PATTERN =
+  /(?:\b(?:[Mm][Ss][Tt][Rr]|[Mm][Aa][Rr][Aa]|[Rr][Ii][Oo][Tt]|[Cc][Ll][Ss][Kk])\b|\bCOIN\b).*\b(?:[Ww]atchlist|[Uu]pdate|[Ss]tocks?|[Ee]quities|[Pp]rice|[Pp]erformance)\b/;
+
+const ROUTING_RULES: RoutingRule[] = [
   {
     intent: 'portfolio',
     pattern: /\b(analy[sz]e|check|review|audit|show|summari[sz]e)\s+my\s+(portfolio|wallet|holdings|bags)\b|\bmy\s+(portfolio|wallet|holdings|bags)\b/i,
@@ -19,6 +43,8 @@ const ROUTING_RULES = [
   {
     intent: 'compare',
     pattern: /\b(compare|vs|versus|side[- ]by[- ]side)\b/i,
+    // "hyperliquid vs binance" compares venues, not assets; perps handles it.
+    exclude: /\b(hyperliquid|binance|sodex|bybit|okx|coinbase|exchanges?|venues?)\b[^.?!]*\b(vs|versus)\b|\b(vs|versus)\b[^.?!]*\b(hyperliquid|binance|sodex|bybit|okx|coinbase|exchanges?|venues?)\b/i,
     tools: ['compare_assets'],
     budget: 'simple',
     followUp: 'Use a table and compare exact fields returned by the comparison result before writing an interpretation.'
@@ -39,7 +65,9 @@ const ROUTING_RULES = [
   },
   {
     intent: 'market_overview',
-    pattern: /\b(market overview|market status|(?:status|state) of the (?:crypto )?market|what(?:'s| is) happening|hot(?:test)? (?:\w+ )*news|crypto news today|full market|market update|latest (?:crypto |market )?news|news stories)\b/i,
+    pattern: /\b(market overview|market status|(?:status|state) of the (?:crypto )?market|what(?:'s| is) the (?:crypto )?market doing|how(?:'s| is) the (?:crypto )?market(?: doing)?|hot(?:test)? (?:\w+ )*news|crypto news today|full market|market update|latest (?:crypto |market )?news|news stories)\b/i,
+    // Generic phrasing: only used when no more specific rule matched.
+    weakPattern: /\bwhat(?:'s| is) happening\b/i,
     tools: ['get_market_intelligence', 'get_hot_news_digest', 'get_macro_crypto_calendar', 'get_crypto_market_overview'],
     budget: 'market',
     followUp: 'Separate market price, sector, news, and macro evidence; avoid a single broad sentiment paragraph.'
@@ -102,7 +130,8 @@ const ROUTING_RULES = [
   },
   {
     intent: 'macro',
-    pattern: /\b(macro|fomc|cpi|fed|economic calendar|rates|inflation|jobs|unemployment|pce)\b/i,
+    // No bare "rates": "funding rates" is a perps question, and interest rates are fed_rates.
+    pattern: /\b(macro|fomc|cpi|fed|fed funds|economic calendar|inflation|jobs report|unemployment|pce)\b/i,
     tools: ['get_macro_crypto_calendar', 'get_macro_event_history', 'get_fed_rate_outlook'],
     budget: 'standard',
     followUp: 'Use dates, event names, actual/forecast/previous values, and state clearly when history is unavailable.'
@@ -116,7 +145,9 @@ const ROUTING_RULES = [
   },
   {
     intent: 'crypto_equities',
-    pattern: /\b(crypto equities|crypto stocks|equities watchlist|stock watchlist)\b|\b(mstr|coin|mara|riot|clsk)\b.*\b(watchlist|update|stocks?|equities|price|performance)\b/i,
+    pattern: /\b(crypto equities|crypto stocks|equities watchlist|stock watchlist)\b/i,
+    // COIN only counts in capitals so "coin price" stays a crypto question.
+    casedPattern: EQUITY_TICKER_PATTERN,
     tools: ['get_crypto_equities_watchlist'],
     budget: 'standard',
     followUp: 'Report crypto equity tickers in a watchlist table with price, 24h move, market cap/volume when available, and a crypto-market readthrough. Do not confuse stock tickers with crypto tokens.'
@@ -137,14 +168,17 @@ const ROUTING_RULES = [
   },
   {
     intent: 'fundraising',
-    pattern: /\b(fundraising|funding rounds?|vc|venture capital|investment rounds?|raised capital|raises funding)\b/i,
+    pattern: FUNDRAISING_PATTERN,
     tools: ['get_fundraising_overview', 'search_web'],
     budget: 'standard',
     followUp: 'Pass the project name when the user names one. Report fundraising rounds as concrete rows: round, amount, date, valuation, lead and other investors. Without a project, list the returned fundraising headlines. Do not turn it into broad sentiment.'
   },
   {
     intent: 'opportunity',
-    pattern: /\b(what|which)\b.*\b(buy|invest|long|short|trade|pick)\b|\b(recommend|suggestion|opportunit(?:y|ies))\b/i,
+    pattern: /\b(recommend|suggestion|opportunit(?:y|ies))\b|\bshould i\b.*\b(buy|invest|long|short|trade)\b|\b(what|which)\b.*\bto (buy|invest in|long|short|trade)\b/i,
+    weakPattern: /\b(what|which)\b.*\b(buy|invest|long|short|trade|pick)\b/i,
+    // "long/short ratio" is a derivatives metric, not a request for picks.
+    exclude: /\blong[/ -]?short\b/i,
     tools: ['get_market_intelligence', 'get_sector_spotlight', 'get_hot_news_digest'],
     budget: 'market',
     followUp: 'Use opportunity scanner results and sector rotation data to identify specific actionable areas. Never give generic "the market is neutral" — always point to specific sectors or assets that stand out relative to each other.'
@@ -158,7 +192,7 @@ const ROUTING_RULES = [
   },
   {
     intent: 'perps',
-    pattern: /\b(perps?|perpetuals?|funding (?:rates?|apr)|open interest|oi|basis trade|leverage[d]?|crowded (?:longs?|shorts?)|short squeeze|long squeeze|hyperliquid|binance futures|futures (?:market|positioning))\b/i,
+    pattern: /\b(perps?|perpetuals?|funding (?:rates?|apr)|open interest|oi|basis trade|leverage[d]?|crowded (?:longs?|shorts?)|short squeeze|long squeeze|hyperliquid|binance futures|futures (?:market|positioning)|liquidations?|liquidated|rekt)\b/i,
     tools: ['get_perp_market', 'get_analysis_chart'],
     budget: 'standard',
     followUp: 'Call get_perp_market with the asset when one is named, otherwise without it for the board. Report open interest and OI-weighted funding APR first, then per-venue funding and depth, and the price gap only if returned. Funding values are percentages. Say which venues the data covers and note stale venue snapshots.'
@@ -221,7 +255,9 @@ const ROUTING_RULES = [
   },
   {
     intent: 'asset_snapshot',
-    pattern: /\b(price|quote|market cap|volume|doing|dominance)\b/i,
+    // A single-coin tool: only used when nothing more specific matched.
+    pattern: /\b(price|quote|market cap|volume|dominance)\b/i,
+    weak: true,
     tools: ['get_asset_snapshot'],
     budget: 'simple',
     followUp: 'Answer with exact price, change, market cap, and volume fields when available.'
@@ -246,9 +282,10 @@ const STANDALONE_INDEX_PATTERN =
   /\b(sosovalue\s+)?ssi\b|\b(indices|index overview|index performance|index constituents)\b/i;
 const INDEX_CONTEXT_PATTERN = /\b(regime|market overview|opportunit|alert)\b/i;
 const STANDALONE_CRYPTO_EQUITIES_PATTERN =
-  /\b(crypto equities|crypto stocks|equities watchlist|stock watchlist)\b|\b(mstr|coin|mara|riot|clsk)\b.*\b(watchlist|update|stocks?|equities|price|performance)\b/i;
+  /\b(crypto equities|crypto stocks|equities watchlist|stock watchlist)\b/i;
+// Exact fundraising phrases only; a bare "vc" no longer short-circuits routing.
 const STANDALONE_FUNDRAISING_PATTERN =
-  /\b(fundraising|funding rounds?|vc|venture capital|investment rounds?|raised capital|raises funding)\b/i;
+  /\b(fundraising|funding rounds?|venture capital|investment rounds?|seed rounds?|series [a-d] (?:rounds?|raise))\b/i;
 
 const toRoutingResult = (rule) => ({
   intent: rule.intent,
@@ -256,6 +293,18 @@ const toRoutingResult = (rule) => ({
   budget: rule.budget,
   followUp: rule.followUp
 });
+
+// How a rule matched:
+// - 'strong': its own pattern matched
+// - 'fallback': a rule marked weak matched (fine on its own, loses to specific rules)
+// - 'ambiguous': only broad phrasing matched (worth asking the classifier)
+type MatchStrength = 'strong' | 'fallback' | 'ambiguous' | null;
+const matchStrength = (rule: RoutingRule, text: string): MatchStrength => {
+  if (rule.exclude?.test(text)) return null;
+  const strongHit = rule.pattern.test(text) || Boolean(rule.casedPattern?.test(text));
+  if (strongHit) return rule.weak ? 'fallback' : 'strong';
+  return rule.weakPattern?.test(text) ? 'ambiguous' : null;
+};
 
 const findRule = (intent) => ROUTING_RULES.find((rule) => rule.intent === intent);
 
@@ -398,7 +447,7 @@ const inferToolRouting = async (message = '') => {
     return toRoutingResult(findRule('index_overview'));
   }
 
-  if (STANDALONE_CRYPTO_EQUITIES_PATTERN.test(text)) {
+  if (STANDALONE_CRYPTO_EQUITIES_PATTERN.test(text) || EQUITY_TICKER_PATTERN.test(text)) {
     return toRoutingResult(findRule('crypto_equities'));
   }
 
@@ -406,17 +455,28 @@ const inferToolRouting = async (message = '') => {
     return toRoutingResult(findRule('fundraising'));
   }
 
-  // Deterministic rules first: on the golden suite they route 32/32 correctly, while
+  // Deterministic rules first: on the golden suite they route correctly, while
   // the LLM alone scored 19/32 and over-picked expensive deep-dive budgets
-  // (npm run test:evals:live). The LLM only handles queries no rule recognises.
-  let matched = ROUTING_RULES.filter((rule) => rule.pattern.test(text));
+  // (npm run test:evals:live). The LLM handles queries no rule recognises, and
+  // queries that only hit broad (weak) phrasing.
+  const hits = ROUTING_RULES
+    .map((rule) => ({ rule, strength: matchStrength(rule, text) }))
+    .filter((hit) => hit.strength !== null);
+  const strong = hits.filter((hit) => hit.strength === 'strong').map((hit) => hit.rule);
+  const weak = hits.filter((hit) => hit.strength !== 'strong').map((hit) => hit.rule);
+  const onlyAmbiguous = weak.length > 0 && hits.every((hit) => hit.strength === 'ambiguous');
 
-  if (matched.length === 0) {
+  // A specific rule beats broad phrasing ("what's happening", "price").
+  let matched = strong.length ? strong : weak;
+
+  // Ask the classifier when nothing matched, or only vague phrasing did.
+  if (matched.length === 0 || onlyAmbiguous) {
     const llmIntents = await classifyIntentsWithLlm(text);
     // An LLM guess may pick tools but not escalate spend past the default tier.
-    matched = ROUTING_RULES
+    const llmMatched = ROUTING_RULES
       .filter((rule) => llmIntents.includes(rule.intent))
       .map((rule) => ({ ...rule, budget: capBudget(rule.budget, LLM_ROUTED_MAX_BUDGET) }));
+    if (llmMatched.length) matched = llmMatched;
   }
 
   if (!matched.length) {
@@ -428,9 +488,20 @@ const inferToolRouting = async (message = '') => {
     return toRoutingResult(matched[0]);
   }
 
-  // Multi-intent: merge tool sets (deduplicated), pick highest budget, combine follow-ups
-  const mergedTools = [...new Set(matched.flatMap((rule) => rule.tools))].slice(0, MAX_MERGED_TOOLS);
+  // Multi-intent: merge tool sets (deduplicated), pick highest budget, combine
+  // follow-ups. The list is trimmed to what the budget can actually call (+1
+  // spare) so the hint never asks for more calls than allowed.
   const mergedBudget = highestBudget(matched.map((rule) => rule.budget));
+  const maxTools = Math.min(MAX_MERGED_TOOLS, (BUDGET_TIERS[mergedBudget]?.max ?? 2) + 1);
+  // Round-robin across rules so each matched intent keeps its primary tool.
+  const interleaved: string[] = [];
+  const longest = Math.max(...matched.map((rule) => rule.tools.length));
+  for (let i = 0; i < longest; i += 1) {
+    for (const rule of matched) {
+      if (rule.tools[i]) interleaved.push(rule.tools[i]);
+    }
+  }
+  const mergedTools = [...new Set(interleaved)].slice(0, maxTools);
   const intents = matched.map((rule) => rule.intent).join('+');
   const followUps = matched.map((rule) => rule.followUp).join(' ');
 

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Message, MessageFeedbackRating } from '@/lib/types';
 import ToolCallBadge from './ToolCallBadge';
+import TradeIdeaCard from './trade/TradeIdeaCard';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion } from 'motion/react';
@@ -383,6 +384,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isThinking, stat
             <AnimatedMarkdown content={message.content} animate={shouldAnimateMarkdown} />
           )}
         </div>
+
+        {!isUser && !isThinking && message.tradeIdea && <TradeIdeaCard idea={message.tradeIdea} />}
 
         {/* Copy + feedback - assistant messages only */}
         {!isUser && !isThinking && message.content && (
